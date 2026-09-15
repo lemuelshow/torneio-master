@@ -1,0 +1,76 @@
+@import "tailwindcss";
+
+/* Identidade visual do escudo Futevôlei Master Brasil:
+   azul-marinho profundo, dourado das estrelas e verde-bandeira. */
+@theme {
+  --color-marinho-50:  #eef3fc;
+  --color-marinho-100: #d8e4f7;
+  --color-marinho-200: #b0c7ee;
+  --color-marinho-300: #7fa3e0;
+  --color-marinho-400: #4a78cd;
+  --color-marinho-500: #2352a8;
+  --color-marinho-600: #16407f;
+  --color-marinho-700: #103069;
+  --color-marinho-800: #0b2350;
+  --color-marinho-900: #071a3d;
+
+  --color-ouro-100: #fdf3d0;
+  --color-ouro-300: #f7dd7e;
+  --color-ouro-500: #f2c218;
+  --color-ouro-600: #c99c05;
+  --color-ouro-700: #8a6b02;
+
+  --color-verde-100: #d9f2e2;
+  --color-verde-500: #009c3b;
+  --color-verde-600: #007c2f;
+  --color-verde-700: #045f26;
+
+  --color-ink:   #0d1526;
+  --color-ink-2: #4a5568;
+  --color-ink-3: #8a93a6;
+  --color-line:  #dfe5ef;
+  --color-surface: #ffffff;
+  --color-plane:   #f3f6fb;
+
+  --color-erro:  #c0392b;
+  --color-alerta: #b45309;
+
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+html, body {
+  background: var(--color-plane);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  margin: 0;
+}
+
+/* fundo do painel lateral: degradê do escudo */
+.painel-marinho {
+  background:
+    radial-gradient(120% 60% at 50% 0%, #16407f 0%, transparent 60%),
+    linear-gradient(180deg, #0b2350 0%, #071a3d 100%);
+}
+
+.faixa-bandeira {
+  background: linear-gradient(
+    90deg,
+    var(--color-verde-500) 0%,
+    var(--color-verde-500) 33%,
+    var(--color-ouro-500) 33%,
+    var(--color-ouro-500) 66%,
+    var(--color-marinho-600) 66%,
+    var(--color-marinho-600) 100%
+  );
+}
+
+.scroll-x { scrollbar-width: thin; }
+
+@keyframes surge { from { opacity: 0; transform: translateY(4px) } to { opacity: 1; transform: none } }
+.surge { animation: surge .18s ease-out both }
+
+@media print {
+  .nao-imprime { display: none !important; }
+  body { background: #fff; }
+  .pagina-sumula { page-break-after: always; }
+}

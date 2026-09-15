@@ -1,0 +1,16 @@
+services:
+  torneio-futevolei:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: torneio-futevolei:latest
+    container_name: torneio-futevolei
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      # a planilha (banco de dados) fica no host, fora do container —
+      # sobrevive a rebuilds/updates da imagem
+      - ./dados:/app/dados
+    environment:
+      - PLANILHA=/app/dados/torneio.xlsx

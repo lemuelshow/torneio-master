@@ -1,0 +1,14 @@
+node_modules
+.next
+.git
+.gitignore
+npm-debug.log*
+
+# a planilha é dado de runtime, não faz parte da imagem — entra via volume
+dados
+
+*.md
+.env*
+.vscode
+scripts/instalar-node.ps1
+INICIAR.bat
