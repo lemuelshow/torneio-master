@@ -12,7 +12,7 @@ import { Alerta, cx } from "@/components/ui";
 import { Escudo, FaixaBandeira } from "@/components/Marca";
 
 const NAV = [
-  { href: "/", rotulo: "Campeonatos", icone: Trophy, grupo: "Competições" },
+  { href: "/", rotulo: "Torneios", icone: Trophy, grupo: "Competições" },
   { href: "/financeiro", rotulo: "Financeiro", icone: Wallet, grupo: "Competições" },
   { href: "/atletas", rotulo: "Base de atletas", icone: Users, grupo: "Cadastro" },
   { href: "/config", rotulo: "Configurações", icone: Settings, grupo: "Sistema" },

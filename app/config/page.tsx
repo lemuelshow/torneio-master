@@ -167,7 +167,7 @@ export default function ConfigPage() {
     <div className="space-y-5">
       <Cabecalho
         titulo="Configurações"
-        descricao="Identidade da organização, padrões de novos campeonatos e faixas de categoria. Tudo é gravado na planilha."
+        descricao="Identidade da organização, padrões de novos torneios e faixas de categoria. Tudo é gravado na planilha."
         acao={
           <a href="/api/planilha">
             <Botao variante="secundario" pequeno>
@@ -181,7 +181,7 @@ export default function ConfigPage() {
       <SecaoPlanilhaGoogle />
 
       <Card>
-        <Titulo dica="O valor e o tamanho de grupo aqui são apenas os padrões sugeridos ao criar um campeonato novo — cada campeonato guarda os seus.">
+        <Titulo dica="O valor e o tamanho de grupo aqui são apenas os padrões sugeridos ao criar um torneio novo — cada torneio guarda os seus.">
           Parâmetros gerais
         </Titulo>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

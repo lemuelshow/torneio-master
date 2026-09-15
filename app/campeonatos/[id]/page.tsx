@@ -22,8 +22,8 @@ const ACAO: Record<Etapa, string> = {
   grupos: "Processar e gerar Classificação",
   classificacao: "Ir para a segunda etapa (sorteio de duplas)",
   duplas: "Gerar a chave final",
-  final: "Encerrar campeonato",
-  encerrado: "Campeonato encerrado",
+  final: "Encerrar torneio",
+  encerrado: "Torneio encerrado",
 };
 
 const PASSOS = ETAPAS.filter((e) => e.chave !== "encerrado");
@@ -57,7 +57,7 @@ export default function PaginaCampeonato() {
   if (!campeonato)
     return (
       <Vazio
-        titulo="Campeonato não encontrado"
+        titulo="Torneio não encontrado"
         descricao="Ele pode ter sido excluído da planilha."
         acao={
           <Link href="/">
@@ -97,7 +97,7 @@ export default function PaginaCampeonato() {
               className="inline-flex items-center gap-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-marinho-200 hover:text-white"
             >
               <ChevronLeft className="size-3" />
-              Campeonatos
+              Torneios
             </Link>
             <h1 className="mt-0.5 truncate text-xl font-bold tracking-tight sm:text-2xl">
               {campeonato.nome}
@@ -143,7 +143,7 @@ export default function PaginaCampeonato() {
       {editando && (
         <Card className="surge">
           <Titulo dica="Mudar a data recalcula a idade — e a categoria — de todos os participantes.">
-            Dados do campeonato
+            Dados do torneio
           </Titulo>
           <div className="grid gap-3 sm:grid-cols-3">
             <Campo rotulo="Nome">
@@ -227,7 +227,7 @@ export default function PaginaCampeonato() {
 
       {encerrado && (
         <Alerta tom="info">
-          Campeonato <strong>encerrado</strong>. Os dados ficam disponíveis para consulta
+          Torneio <strong>encerrado</strong>. Os dados ficam disponíveis para consulta
           e continuam na planilha. Use “Voltar etapa” se precisar reabrir a chave final.
         </Alerta>
       )}

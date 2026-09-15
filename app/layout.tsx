@@ -12,7 +12,7 @@ import type { Estado } from "@/lib/tipos";
 export const metadata: Metadata = {
   title: "Futevôlei Master Brasil — gestão de torneios",
   description:
-    "Campeonatos, atletas, sorteios, classificação, súmulas e chave final, com a planilha Excel como banco de dados.",
+    "Torneios, atletas, sorteios, classificação, súmulas e chave final, com a planilha Excel como banco de dados.",
 };
 
 // o estado é lido a cada requisição — nada de dado congelado no build

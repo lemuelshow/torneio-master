@@ -78,17 +78,17 @@ export default function Campeonatos() {
               {estado.config.organizacao}
             </p>
             <h1 className="mt-1 text-xl font-bold tracking-tight sm:text-2xl">
-              Campeonatos
+              Torneios
             </h1>
             <p className="mt-1 text-[13px] text-marinho-100">
               {lista.length === 0
-                ? "Crie o primeiro campeonato para começar."
-                : `${lista.length} campeonato(s) · ${estado.atletas.length} atletas na base`}
+                ? "Crie o primeiro torneio para começar."
+                : `${lista.length} torneio(s) · ${estado.atletas.length} atletas na base`}
             </p>
           </div>
           <Botao variante="ouro" onClick={() => setCriando((v) => !v)}>
             {criando ? <X className="size-4" /> : <Plus className="size-4" />}
-            {criando ? "Cancelar" : "Novo campeonato"}
+            {criando ? "Cancelar" : "Novo torneio"}
           </Botao>
         </div>
         <FaixaBandeira />
@@ -97,7 +97,7 @@ export default function Campeonatos() {
       {criando && (
         <Card className="surge">
           <Titulo dica="A data da competição é a base do cálculo de idade dos atletas.">
-            Novo campeonato
+            Novo torneio
           </Titulo>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Campo rotulo="Nome" className="lg:col-span-2">
@@ -147,7 +147,7 @@ export default function Campeonatos() {
           <div className="mt-4">
             <Botao onClick={criar} disabled={salvando}>
               <Trophy className="size-4" />
-              Criar campeonato
+              Criar torneio
             </Botao>
           </div>
         </Card>
@@ -155,8 +155,8 @@ export default function Campeonatos() {
 
       {lista.length === 0 && !criando ? (
         <Vazio
-          titulo="Nenhum campeonato ainda"
-          descricao="Cada campeonato tem seus próprios participantes, grupos, classificação e chave final. A base de atletas é compartilhada entre todos."
+          titulo="Nenhum torneio ainda"
+          descricao="Cada torneio tem seus próprios participantes, grupos, classificação e chave final. A base de atletas é compartilhada entre todos."
           acao={
             <Botao onClick={() => setCriando(true)}>
               <Plus className="size-4" />
@@ -264,7 +264,7 @@ export default function Campeonatos() {
                 setExcluindo(null);
               }}
             >
-              Excluir campeonato
+              Excluir torneio
             </Botao>
             <Botao variante="secundario" onClick={() => setExcluindo(null)}>
               Cancelar

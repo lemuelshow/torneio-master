@@ -91,7 +91,7 @@ export default function AtletasPage() {
     <div className="space-y-5">
       <Cabecalho
         titulo="Base de atletas"
-        descricao="Cadastro único, reaproveitado por todos os campeonatos. A idade e a categoria são calculadas na data de cada competição."
+        descricao="Cadastro único, reaproveitado por todos os torneios. A idade e a categoria são calculadas na data de cada competição."
       />
 
       <Card>
@@ -253,7 +253,7 @@ export default function AtletasPage() {
               "Lado",
               "Telefone",
               "Uniforme",
-              "Campeonatos",
+              "Torneios",
               "",
             ]}
             minimo={1020}
@@ -315,7 +315,7 @@ export default function AtletasPage() {
           <Alerta tom="erro">
             Excluir{" "}
             <strong>{estado.atletas.find((a) => a.id === excluindo)?.nome}</strong> da
-            base? Atletas inscritos em algum campeonato não podem ser excluídos — remova
+            base? Atletas inscritos em algum torneio não podem ser excluídos — remova
             das inscrições primeiro.
           </Alerta>
           <div className="mt-3 flex gap-2">

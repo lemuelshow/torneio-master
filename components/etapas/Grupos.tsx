@@ -150,7 +150,7 @@ function CartaoGrupo({
     const categoriaAtual = categoriaAtualDoAtleta.get(atletaEscolhido);
     if (categoriaAtual && categoriaAtual !== categoria) {
       const confirmar = window.confirm(
-        `Esse atleta já está vinculado à categoria "${categoriaAtual}" neste campeonato. Adicionar mesmo assim ao grupo de "${categoria}"?`
+        `Esse atleta já está vinculado à categoria "${categoriaAtual}" neste torneio. Adicionar mesmo assim ao grupo de "${categoria}"?`
       );
       if (!confirmar) return;
     }

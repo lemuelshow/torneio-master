@@ -55,15 +55,15 @@ export default function FinanceiroPage() {
       <div className="space-y-5">
         <Cabecalho
           titulo="Financeiro"
-          descricao="Faturamento consolidado dos campeonatos e controle de quem ainda deve."
+          descricao="Faturamento consolidado dos torneios e controle de quem ainda deve."
         />
         <Vazio
-          titulo="Nenhum campeonato para somar"
-          descricao="Crie um campeonato e inscreva atletas — o dinheiro aparece aqui automaticamente."
+          titulo="Nenhum torneio para somar"
+          descricao="Crie um torneio e inscreva atletas — o dinheiro aparece aqui automaticamente."
           acao={
             <Link href="/">
               <Botao>
-                Ir para Campeonatos
+                Ir para Torneios
                 <ArrowRight className="size-4" />
               </Botao>
             </Link>
@@ -76,7 +76,7 @@ export default function FinanceiroPage() {
     <div className="space-y-5">
       <Cabecalho
         titulo="Financeiro"
-        descricao="Faturamento consolidado dos campeonatos, entrada por mês e quem está pendente em cada um."
+        descricao="Faturamento consolidado dos torneios, entrada por mês e quem está pendente em cada um."
         acao={
           <a href="/api/planilha">
             <Botao variante="secundario" pequeno>
@@ -92,7 +92,7 @@ export default function FinanceiroPage() {
         <Indicador
           rotulo="Faturamento previsto"
           valor={dinheiro(financeiro.previsto)}
-          detalhe={`${financeiro.inscricoes} inscrição(ões) em ${resumos.length} campeonato(s)`}
+          detalhe={`${financeiro.inscricoes} inscrição(ões) em ${resumos.length} torneio(s)`}
           icone={<Coins className="size-4" />}
         />
         <Indicador
@@ -121,7 +121,7 @@ export default function FinanceiroPage() {
       {/* ------------------------------------- recebido x a receber por campeonato */}
       <Card>
         <Titulo
-          dica="Cada barra é a inscrição total do campeonato; a parte verde já entrou no caixa."
+          dica="Cada barra é a inscrição total do torneio; a parte verde já entrou no caixa."
           acao={
             <div className="flex items-center gap-4 text-[12px] text-ink-2">
               <span className="inline-flex items-center gap-1.5">
@@ -141,7 +141,7 @@ export default function FinanceiroPage() {
             </div>
           }
         >
-          Faturamento por campeonato
+          Faturamento por torneio
         </Titulo>
 
         <ul className="space-y-3">
@@ -239,9 +239,9 @@ export default function FinanceiroPage() {
 
       {/* -------------------------------------------------- filtro + pendências */}
       <div className="flex flex-wrap items-end gap-3">
-        <Campo rotulo="Campeonato" className="min-w-[260px]">
+        <Campo rotulo="Torneio" className="min-w-[260px]">
           <Selecao value={filtro} onChange={(e) => setFiltro(e.target.value)}>
-            <option value="">Todos os campeonatos</option>
+            <option value="">Todos os torneios</option>
             {resumos.map((r) => (
               <option key={r.campeonato.id} value={r.campeonato.id}>
                 {r.campeonato.nome}
@@ -271,7 +271,7 @@ export default function FinanceiroPage() {
         {pendencias.length === 0 ? (
           <div className="p-4">
             <Alerta tom="info">
-              Nenhuma pendência {filtro ? "neste campeonato" : "em nenhum campeonato"} —
+              Nenhuma pendência {filtro ? "neste torneio" : "em nenhum torneio"} —
               todas as inscrições estão quitadas.
             </Alerta>
           </div>
@@ -280,7 +280,7 @@ export default function FinanceiroPage() {
             minimo={900}
             colunas={[
               "Atleta",
-              "Campeonato",
+              "Torneio",
               "Categoria",
               "Parcelas",
               "Valor",
@@ -344,13 +344,13 @@ export default function FinanceiroPage() {
       <Card padding={false}>
         <div className="border-b border-line px-4 py-3">
           <h2 className="text-[15px] font-bold tracking-tight text-marinho-800">
-            Resumo por campeonato
+            Resumo por torneio
           </h2>
         </div>
         <Tabela
           minimo={860}
           colunas={[
-            "Campeonato",
+            "Torneio",
             "Data",
             "Inscritos",
             "Quitados",
