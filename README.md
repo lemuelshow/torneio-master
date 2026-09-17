@@ -104,6 +104,7 @@ localmente, se houver.
 | `/` | Campeonatos: lista, criação e progresso de cada um no fluxo |
 | `/campeonatos/[id]` | Fluxo completo do campeonato, etapa por etapa |
 | `/financeiro` | Dashboard: faturamento por campeonato, entrada por mês e pendências |
+| `/financeiro/[id]` | Financeiro de um torneio: lançamento das 4 parcelas de cada inscrito |
 | `/atletas` | Base de atletas: nome, nascimento, sexo, lado (D/E/Ambos), telefone, uniforme |
 | `/config` | Organização, padrões de novos campeonatos, faixas de categoria e a conexão com a planilha do Google |
 
@@ -111,7 +112,7 @@ Dentro de `/campeonatos/[id]`, cada etapa tem o seu painel:
 
 | Etapa | O que dá para fazer |
 |---|---|
-| Participantes | Selecionar atletas da base ou cadastrar um novo já inscrevendo; baixar as 4 parcelas |
+| Participantes | Selecionar atletas da base ou cadastrar um novo já inscrevendo (o pagamento fica no Financeiro) |
 | Fase de grupos | Ver os grupos, trocar atletas de vaga, **excluir um atleta do grupo** (ícone de lixeira), lançar os placares dos 3 jogos |
 | Classificação e súmulas | Conferir a ordenação, **ajustar a classificação à mão** e **baixar as súmulas em PDF** (geral ou por categoria) |
 | 2º sorteio — duplas | Duplas fixas do Ouro e da Prata, com opção de sortear de novo e **súmulas em PDF por divisão** |
@@ -156,11 +157,15 @@ saem da aba Faixas (padrão 40–49, 50–59, 60–69, 70+ e Feminino 40+).
 **Inscrição.** Sempre 4 parcelas, com situação individual (`2/4`), total pago e
 saldo por atleta — **por campeonato**. O mesmo atleta pode estar em vários
 campeonatos com pagamentos independentes, e um atleta inscrito em algum
-campeonato não pode ser excluído da base.
+campeonato não pode ser excluído da base. O lançamento das parcelas vive só no
+Financeiro: a etapa de Participantes cuida de quem entra no torneio.
 
 **Financeiro.** O dashboard soma tudo: previsto, recebido e a receber por
 campeonato, entrada mês a mês (pela data de cada parcela) e a lista de quem
 está pendente, ordenada pelo maior saldo em aberto, com telefone de contato.
+Clicando no torneio abre a tela dele, onde as parcelas são marcadas uma a uma
+(ou de quatro em quatro, no botão Quitar) — com o cadeado travado por padrão
+para ninguém baixar parcela sem querer.
 
 **1º sorteio — grupos.** Grupos de 4 buscando **2 D + 2 E**. Atletas marcados
 como **Ambos** entram como curinga para fechar as vagas. Falta de equilíbrio

@@ -1,8 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Lock, Search, Trash2, Unlock, UserPlus, Users } from "lucide-react";
-import { ROTULO_LADO, dinheiro, useDados } from "@/lib/cliente";
+import { Search, Trash2, UserPlus, Users, Wallet } from "lucide-react";
+import { ROTULO_LADO, useDados } from "@/lib/cliente";
 import { idadeNaData } from "@/lib/regras";
 import type { Campeonato } from "@/lib/tipos";
 import {
@@ -35,7 +36,6 @@ export function EtapaParticipantes({
   const [categoriaLote, setCategoriaLote] = useState("");
   const [novo, setNovo] = useState(VAZIO);
   const [criando, setCriando] = useState(false);
-  const [destravado, setDestravado] = useState(false);
 
   const participantes = participantesDe(campeonato.id);
   const inscritos = useMemo(
@@ -92,11 +92,6 @@ export function EtapaParticipantes({
   });
   const paginacaoInscritos = usePaginacao(participantesFiltrados, 25, categoriaInscritos);
 
-  const parcelasDe = (atletaId: string) =>
-    estado.participantes.find(
-      (p) => p.campeonatoId === campeonato.id && p.atletaId === atletaId
-    );
-
   const adicionar = async () => {
     if (!marcados.length) return;
     const ok = await executar("adicionarParticipantes", {
@@ -119,16 +114,6 @@ export function EtapaParticipantes({
       setNovo(VAZIO);
       setCriando(false);
     }
-  };
-
-  const alternarParcela = (atletaId: string, chave: "p1" | "p2" | "p3" | "p4") => {
-    const atual = parcelasDe(atletaId);
-    if (!atual) return;
-    executar("salvarParcelas", {
-      campeonatoId: campeonato.id,
-      atletaId,
-      parcelas: { [chave]: !atual[chave] },
-    });
   };
 
   const semCategoria = participantes.filter((p) => !p.categoria);
@@ -321,36 +306,14 @@ export function EtapaParticipantes({
           <h2 className="text-[15px] font-bold tracking-tight text-marinho-800">
             Inscritos ({participantes.length})
           </h2>
-          <div className="flex items-center gap-3">
-            <span className="text-[12px] text-ink-2">
-              Arrecadado:{" "}
-              <strong className="text-verde-700">
-                {dinheiro(participantes.reduce((s, p) => s + p.totalPago, 0))}
-              </strong>{" "}
-              de {dinheiro(participantes.reduce((s, p) => s + p.valorTotal, 0))}
-            </span>
-            <button
-              type="button"
-              onClick={() => setDestravado((v) => !v)}
-              className={`inline-flex h-8 items-center gap-1.5 rounded-lg border px-2.5 text-[12px] font-semibold transition-colors ${
-                destravado
-                  ? "border-[color-mix(in_oklab,var(--color-alerta)_35%,white)] bg-[color-mix(in_oklab,var(--color-alerta)_10%,white)] text-[var(--color-alerta)]"
-                  : "border-line bg-surface text-ink-2 hover:bg-plane"
-              }`}
-              title={
-                destravado
-                  ? "Valores pagos destravados — clique para travar de novo"
-                  : "Valores pagos travados — clique para destravar"
-              }
-            >
-              {destravado ? (
-                <Unlock className="size-3.5" />
-              ) : (
-                <Lock className="size-3.5" />
-              )}
-              {destravado ? "Destravado" : "Travado"}
-            </button>
-          </div>
+          <Link
+            href={`/financeiro/${campeonato.id}`}
+            className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-marinho-600 hover:underline"
+            title="Inscrições e parcelas ficam no Financeiro"
+          >
+            <Wallet className="size-3.5" />
+            Pagamentos no Financeiro
+          </Link>
         </div>
 
         {abasInscritos.length > 0 && (
@@ -378,83 +341,43 @@ export function EtapaParticipantes({
             />
           </div>
         ) : (
-          <Tabela
-            minimo={860}
-            colunas={[
-              "Atleta",
-              "Idade",
-              "Categoria",
-              "Lado",
-              "1ª",
-              "2ª",
-              "3ª",
-              "4ª",
-              "Pago",
-              "",
-            ]}
-          >
-            {paginacaoInscritos.itensDaPagina.map((p) => {
-              const parcelas = parcelasDe(p.id);
-              return (
-                <tr key={p.id} className="hover:bg-marinho-50/40">
-                  <td className="px-3 py-2">
-                    <span className="font-medium text-ink">{p.nome}</span>
-                    {p.telefone && (
-                      <span className="block text-[11px] text-ink-3">{p.telefone}</span>
-                    )}
-                  </td>
-                  <td className="px-3 py-2 text-ink-2">{p.idadeNoEvento}</td>
-                  <td className="px-3 py-2">
-                    {p.categoria ? (
-                      <Selo tom="info">{p.categoria}</Selo>
-                    ) : (
-                      <Selo tom="alerta">sem faixa</Selo>
-                    )}
-                  </td>
-                  <td className="px-3 py-2 text-ink-2">{ROTULO_LADO[p.lado]}</td>
-                  {(["p1", "p2", "p3", "p4"] as const).map((chave) => (
-                    <td key={chave} className="px-3 py-2">
-                      <input
-                        type="checkbox"
-                        className="size-4 accent-[var(--color-verde-500)]"
-                        checked={Boolean(parcelas?.[chave])}
-                        disabled={salvando || !destravado}
-                        onChange={() => alternarParcela(p.id, chave)}
-                        aria-label={`Parcela ${chave.slice(1)} de ${p.nome}`}
-                      />
-                    </td>
-                  ))}
-                  <td className="px-3 py-2">
-                    <span
-                      className={
-                        p.parcelasPagas === 4
-                          ? "font-semibold text-verde-700"
-                          : "text-ink-2"
+          <Tabela minimo={640} colunas={["Atleta", "Idade", "Categoria", "Lado", ""]}>
+            {paginacaoInscritos.itensDaPagina.map((p) => (
+              <tr key={p.id} className="hover:bg-marinho-50/40">
+                <td className="px-3 py-2">
+                  <span className="font-medium text-ink">{p.nome}</span>
+                  {p.telefone && (
+                    <span className="block text-[11px] text-ink-3">{p.telefone}</span>
+                  )}
+                </td>
+                <td className="px-3 py-2 text-ink-2">{p.idadeNoEvento}</td>
+                <td className="px-3 py-2">
+                  {p.categoria ? (
+                    <Selo tom="info">{p.categoria}</Selo>
+                  ) : (
+                    <Selo tom="alerta">sem faixa</Selo>
+                  )}
+                </td>
+                <td className="px-3 py-2 text-ink-2">{ROTULO_LADO[p.lado]}</td>
+                <td className="px-3 py-2 text-right">
+                  {!bloqueado && (
+                    <button
+                      onClick={() =>
+                        executar("removerParticipante", {
+                          campeonatoId: campeonato.id,
+                          atletaId: p.id,
+                        })
                       }
+                      disabled={salvando}
+                      className="text-[var(--color-erro)] hover:opacity-70 disabled:opacity-40"
+                      aria-label={`Remover ${p.nome}`}
                     >
-                      {dinheiro(p.totalPago)}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    {!bloqueado && (
-                      <button
-                        onClick={() =>
-                          executar("removerParticipante", {
-                            campeonatoId: campeonato.id,
-                            atletaId: p.id,
-                          })
-                        }
-                        disabled={salvando}
-                        className="text-[var(--color-erro)] hover:opacity-70 disabled:opacity-40"
-                        aria-label={`Remover ${p.nome}`}
-                      >
-                        <Trash2 className="size-4" />
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
+                      <Trash2 className="size-4" />
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
           </Tabela>
         )}
         <Paginacao {...paginacaoInscritos} />

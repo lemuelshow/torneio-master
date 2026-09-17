@@ -152,8 +152,9 @@ export default function FinanceiroPage() {
               <li key={r.campeonato.id} className="group">
                 <div className="mb-1 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5">
                   <Link
-                    href={`/campeonatos/${r.campeonato.id}`}
+                    href={`/financeiro/${r.campeonato.id}`}
                     className="text-[13px] font-semibold text-marinho-800 hover:underline"
+                    title="Abrir o financeiro deste torneio"
                   >
                     {r.campeonato.nome}
                   </Link>
@@ -326,7 +327,7 @@ export default function FinanceiroPage() {
                 <td className="px-3 py-2 text-ink-2">{p.telefone || "—"}</td>
                 <td className="px-3 py-2 text-right">
                   <Link
-                    href={`/campeonatos/${p.campeonato.id}`}
+                    href={`/financeiro/${p.campeonato.id}`}
                     className="inline-flex items-center gap-1 text-[12px] font-semibold text-marinho-600 hover:underline"
                   >
                     <Wallet className="size-3.5" />
@@ -348,7 +349,7 @@ export default function FinanceiroPage() {
           </h2>
         </div>
         <Tabela
-          minimo={860}
+          minimo={940}
           colunas={[
             "Torneio",
             "Data",
@@ -358,13 +359,14 @@ export default function FinanceiroPage() {
             "Recebido",
             "A receber",
             "%",
+            "",
           ]}
         >
           {resumos.map((r) => (
             <tr key={r.campeonato.id} className="hover:bg-marinho-50/40">
               <td className="px-3 py-2">
                 <Link
-                  href={`/campeonatos/${r.campeonato.id}`}
+                  href={`/financeiro/${r.campeonato.id}`}
                   className="font-medium text-marinho-800 hover:underline"
                 >
                   {r.campeonato.nome}
@@ -383,6 +385,15 @@ export default function FinanceiroPage() {
                   {porcento(r.percentual)}
                 </Selo>
               </td>
+              <td className="px-3 py-2 text-right">
+                <Link
+                  href={`/financeiro/${r.campeonato.id}`}
+                  className="inline-flex items-center gap-1 text-[12px] font-semibold text-marinho-600 hover:underline"
+                >
+                  <Wallet className="size-3.5" />
+                  lançar
+                </Link>
+              </td>
             </tr>
           ))}
           <tr className="bg-marinho-50 font-bold text-marinho-800">
@@ -394,6 +405,7 @@ export default function FinanceiroPage() {
             <td className="px-3 py-2 text-verde-700">{dinheiro(financeiro.recebido)}</td>
             <td className="px-3 py-2">{dinheiro(financeiro.aReceber)}</td>
             <td className="px-3 py-2">{porcento(financeiro.percentual)}</td>
+            <td className="px-3 py-2" />
           </tr>
         </Tabela>
       </Card>

@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { useState } from "react";
 import {
   ArrowLeft, ArrowRight, CalendarDays, ChevronLeft, Flag, MapPin, Pencil, Save,
+  Wallet,
 } from "lucide-react";
 import { useDados, dataBr } from "@/lib/cliente";
 import { indiceEtapa, podeAvancar } from "@/lib/regras";
@@ -119,23 +120,31 @@ export default function PaginaCampeonato() {
               </span>
             </p>
           </div>
-          {!encerrado && (
-            <Botao
-              variante="secundario"
-              pequeno
-              onClick={() => {
-                setForm({
-                  nome: campeonato.nome,
-                  data: campeonato.data,
-                  local: campeonato.local,
-                });
-                setEditando((v) => !v);
-              }}
-            >
-              <Pencil className="size-3.5" />
-              {editando ? "Fechar" : "Editar"}
-            </Botao>
-          )}
+          <div className="flex flex-wrap gap-2">
+            <Link href={`/financeiro/${campeonato.id}`}>
+              <Botao variante="secundario" pequeno>
+                <Wallet className="size-3.5" />
+                Financeiro
+              </Botao>
+            </Link>
+            {!encerrado && (
+              <Botao
+                variante="secundario"
+                pequeno
+                onClick={() => {
+                  setForm({
+                    nome: campeonato.nome,
+                    data: campeonato.data,
+                    local: campeonato.local,
+                  });
+                  setEditando((v) => !v);
+                }}
+              >
+                <Pencil className="size-3.5" />
+                {editando ? "Fechar" : "Editar"}
+              </Botao>
+            )}
+          </div>
         </div>
         <FaixaBandeira />
       </section>
