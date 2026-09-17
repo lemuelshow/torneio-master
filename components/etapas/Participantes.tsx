@@ -198,7 +198,7 @@ export function EtapaParticipantes({
                     value={novo.lado}
                     onChange={(e) => setNovo({ ...novo, lado: e.target.value })}
                   >
-                    <option value="D">Destro</option>
+                    <option value="D">Direito</option>
                     <option value="E">Esquerdo</option>
                     <option value="Ambos">Ambos</option>
                   </Selecao>

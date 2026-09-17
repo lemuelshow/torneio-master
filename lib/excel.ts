@@ -88,6 +88,7 @@ export const ABAS = {
     c("atletaId", "ID do atleta", 16),
     c("nome", "Atleta", 30),
     c("ladoNoGrupo", "Lado no grupo", 15),
+    c("posicaoManual", "Posição manual", 16, "numero"),
   ],
   jogos: [
     c("id", "ID", 26),
@@ -355,6 +356,7 @@ export async function lerEstado(): Promise<Estado> {
       vaga: num(g.vaga),
       atletaId: g.atletaId,
       ladoNoGrupo: paraLado(g.ladoNoGrupo),
+      posicaoManual: g.posicaoManual ? num(g.posicaoManual) || null : null,
     })
   );
 

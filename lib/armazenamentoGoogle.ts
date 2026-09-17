@@ -356,6 +356,7 @@ export async function lerEstadoGoogle(): Promise<Estado> {
       vaga: num(g.vaga),
       atletaId: g.atletaId,
       ladoNoGrupo: paraLado(g.ladoNoGrupo),
+      posicaoManual: g.posicaoManual ? num(g.posicaoManual) || null : null,
     })
   );
 

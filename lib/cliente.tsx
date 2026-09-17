@@ -183,7 +183,7 @@ export const dinheiro = (v: number) =>
   });
 
 export const ROTULO_LADO: Record<string, string> = {
-  D: "Destro",
+  D: "Direito",
   E: "Esquerdo",
   Ambos: "Ambos",
 };

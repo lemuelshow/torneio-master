@@ -1,17 +1,24 @@
 "use client";
 
 import { useState } from "react";
-import { FileDown, Medal } from "lucide-react";
+import {
+  ArrowDown, ArrowUp, FileDown, ListOrdered, Medal, RotateCcw, Save, X,
+} from "lucide-react";
 import { useDados } from "@/lib/cliente";
-import type { Campeonato } from "@/lib/tipos";
+import type { Campeonato, LinhaClassificacao } from "@/lib/tipos";
 import {
   Abas, Alerta, Botao, Card, IndicadorCategoria, Selo, Tabela, Titulo, useAbaSelecionada,
   Vazio,
 } from "@/components/ui";
 
+const chaveGrupo = (categoria: string, grupo: number) => `${categoria}||${grupo}`;
+
 export function EtapaClassificacao({ campeonato }: { campeonato: Campeonato }) {
-  const { estado, classificacaoDe } = useDados();
+  const { estado, classificacaoDe, executar, salvando } = useDados();
   const [gerando, setGerando] = useState("");
+  const [editando, setEditando] = useState(false);
+  // ordem rascunhada por grupo enquanto a edição está aberta
+  const [ordens, setOrdens] = useState<Record<string, string[]>>({});
 
   const linhas = classificacaoDe(campeonato.id);
   const categorias = [...new Set(linhas.map((l) => l.categoria))].sort();
@@ -21,15 +28,41 @@ export function EtapaClassificacao({ campeonato }: { campeonato: Campeonato }) {
     setGerando(categoria ?? "todas");
     try {
       const { gerarPdfSumulas } = await import("@/lib/pdf");
-      await gerarPdfSumulas({
-        estado,
-        campeonato,
-        classificacao: linhas,
-        categoria,
-      });
+      await gerarPdfSumulas({ estado, campeonato, classificacao: linhas, categoria });
     } finally {
       setGerando("");
     }
+  };
+
+  const alternarEdicao = () => {
+    setEditando((v) => !v);
+    setOrdens({});
+  };
+
+  const descartar = (chave: string) =>
+    setOrdens((atual) => {
+      const copia = { ...atual };
+      delete copia[chave];
+      return copia;
+    });
+
+  const mover = (chave: string, ordem: string[], de: number, passo: number) => {
+    const para = de + passo;
+    if (para < 0 || para >= ordem.length) return;
+    const nova = [...ordem];
+    [nova[de], nova[para]] = [nova[para], nova[de]];
+    setOrdens((atual) => ({ ...atual, [chave]: nova }));
+  };
+
+  /** Lista vazia devolve o grupo para a ordenação automática. */
+  const gravarOrdem = async (categoria: string, grupo: number, ordem: string[]) => {
+    const ok = await executar("ajustarClassificacao", {
+      campeonatoId: campeonato.id,
+      categoria,
+      grupo,
+      ordem,
+    });
+    if (ok) descartar(chaveGrupo(categoria, grupo));
   };
 
   if (!linhas.length)
@@ -46,7 +79,7 @@ export function EtapaClassificacao({ campeonato }: { campeonato: Campeonato }) {
     <div className="space-y-4">
       <Card>
         <Titulo
-          dica="As súmulas saem com o escudo do torneio, a tabela de cada grupo, os jogos e o espaço para assinatura."
+          dica="As súmulas saem com o escudo do torneio, a classificação de cada grupo com as vitórias, os jogos e o espaço para assinatura."
           acao={
             <Botao
               variante="ouro"
@@ -76,6 +109,15 @@ export function EtapaClassificacao({ campeonato }: { campeonato: Campeonato }) {
         </div>
       </Card>
 
+      {editando && (
+        <Alerta tom="info">
+          Use as setas para reordenar cada grupo e depois salve. A ordem manual manda
+          na classificação: o 1º e o 2º vão para o <strong>Ouro</strong>, o 3º e o 4º
+          para a <strong>Prata</strong>. Ela fica valendo até você editar de novo ou
+          voltar ao automático.
+        </Alerta>
+      )}
+
       {semJogo > 0 && (
         <Alerta tom="alerta">
           {semJogo} atleta(s) ainda sem nenhum jogo lançado — eles aparecem no fim do
@@ -97,28 +139,60 @@ export function EtapaClassificacao({ campeonato }: { campeonato: Campeonato }) {
         const numeros = [...new Set(daCategoria.map((l) => l.grupo))].sort((a, b) => a - b);
         return (
           <Card key={categoria} padding={false}>
-            <div className="flex items-center gap-2 border-b border-line px-4 py-3">
-              <Medal className="size-4 text-ouro-600" />
-              <h2 className="text-[15px] font-bold tracking-tight text-marinho-800">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-4 py-3">
+              <h2 className="flex items-center gap-2 text-[15px] font-bold tracking-tight text-marinho-800">
+                <Medal className="size-4 text-ouro-600" />
                 {categoria}
               </h2>
+              <Botao
+                variante={editando ? "secundario" : "primario"}
+                pequeno
+                onClick={alternarEdicao}
+              >
+                {editando ? (
+                  <X className="size-3.5" />
+                ) : (
+                  <ListOrdered className="size-3.5" />
+                )}
+                {editando ? "Fechar edição" : "Editar classificação"}
+              </Botao>
             </div>
-            {numeros.map((numero) => (
-              <div key={numero} className="border-b border-line last:border-b-0">
-                <p className="bg-plane px-4 py-1.5 text-[12px] font-bold uppercase tracking-wide text-marinho-600">
-                  Grupo {numero}
-                </p>
-                <Tabela
-                  minimo={620}
-                  colunas={["Pos.", "Atleta", "V", "Pontos pró", "Contra", "Saldo", "Divisão"]}
-                >
-                  {daCategoria
-                    .filter((l) => l.grupo === numero)
-                    .map((l) => (
+            {numeros.map((numero) => {
+              const doGrupo = daCategoria.filter((l) => l.grupo === numero);
+              const chave = chaveGrupo(categoria, numero);
+              const salva = doGrupo.map((l) => l.atletaId);
+              const ordem = ordens[chave] ?? salva;
+              const porId = new Map(doGrupo.map((l) => [l.atletaId, l]));
+              const visiveis = ordem
+                .map((id) => porId.get(id))
+                .filter((l): l is LinhaClassificacao => Boolean(l));
+              const sujo = ordem.join("|") !== salva.join("|");
+              const manual = doGrupo.some((l) => l.manual);
+
+              return (
+                <div key={numero} className="border-b border-line last:border-b-0">
+                  <div className="flex flex-wrap items-center justify-between gap-2 bg-plane px-4 py-1.5">
+                    <p className="text-[12px] font-bold uppercase tracking-wide text-marinho-600">
+                      Grupo {numero}
+                    </p>
+                    {manual && <Selo tom="neutro">ordem ajustada à mão</Selo>}
+                  </div>
+                  <Tabela
+                    minimo={editando ? 720 : 620}
+                    colunas={[
+                      "Pos.",
+                      "Atleta",
+                      "V",
+                      "Pontos pró",
+                      "Contra",
+                      "Saldo",
+                      "Divisão",
+                      ...(editando ? ["Mover"] : []),
+                    ]}
+                  >
+                    {visiveis.map((l, i) => (
                       <tr key={l.atletaId} className="hover:bg-marinho-50/40">
-                        <td className="px-3 py-2 font-bold text-marinho-700">
-                          {l.posicao}º
-                        </td>
+                        <td className="px-3 py-2 font-bold text-marinho-700">{i + 1}º</td>
                         <td className="px-3 py-2 font-medium text-ink">{l.nome}</td>
                         <td className="px-3 py-2 font-bold text-marinho-800">
                           {l.vitorias}
@@ -132,16 +206,78 @@ export function EtapaClassificacao({ campeonato }: { campeonato: Campeonato }) {
                           {l.jogos === 0 ? (
                             <span className="text-ink-3">—</span>
                           ) : (
-                            <Selo tom={l.divisao === "Ouro" ? "ouro" : "prata"}>
-                              {l.divisao}
+                            <Selo tom={i < 2 ? "ouro" : "prata"}>
+                              {i < 2 ? "Ouro" : "Prata"}
                             </Selo>
                           )}
                         </td>
+                        {editando && (
+                          <td className="px-3 py-2">
+                            <div className="flex gap-1">
+                              <button
+                                type="button"
+                                onClick={() => mover(chave, ordem, i, -1)}
+                                disabled={i === 0 || salvando}
+                                className="grid size-7 place-items-center rounded-md border border-line bg-surface text-marinho-700 transition-colors hover:bg-marinho-50 disabled:cursor-not-allowed disabled:opacity-40"
+                                aria-label={`Subir ${l.nome}`}
+                                title="Subir"
+                              >
+                                <ArrowUp className="size-3.5" />
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => mover(chave, ordem, i, 1)}
+                                disabled={i === visiveis.length - 1 || salvando}
+                                className="grid size-7 place-items-center rounded-md border border-line bg-surface text-marinho-700 transition-colors hover:bg-marinho-50 disabled:cursor-not-allowed disabled:opacity-40"
+                                aria-label={`Descer ${l.nome}`}
+                                title="Descer"
+                              >
+                                <ArrowDown className="size-3.5" />
+                              </button>
+                            </div>
+                          </td>
+                        )}
                       </tr>
                     ))}
-                </Tabela>
-              </div>
-            ))}
+                  </Tabela>
+                  {editando && (sujo || manual) && (
+                    <div className="flex flex-wrap items-center gap-2 border-t border-line px-4 py-2">
+                      {sujo ? (
+                        <>
+                          <Botao
+                            pequeno
+                            variante="verde"
+                            onClick={() => gravarOrdem(categoria, numero, ordem)}
+                            disabled={salvando}
+                          >
+                            <Save className="size-3.5" />
+                            Salvar ordem do grupo {numero}
+                          </Botao>
+                          <Botao
+                            pequeno
+                            variante="fantasma"
+                            onClick={() => descartar(chave)}
+                            disabled={salvando}
+                          >
+                            Descartar
+                          </Botao>
+                        </>
+                      ) : (
+                        <Botao
+                          pequeno
+                          variante="secundario"
+                          onClick={() => gravarOrdem(categoria, numero, [])}
+                          disabled={salvando}
+                        >
+                          <RotateCcw className="size-3.5" />
+                          Voltar ao automático
+                        </Botao>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </Card>
         );
       })}

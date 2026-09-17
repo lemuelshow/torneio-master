@@ -112,9 +112,9 @@ Dentro de `/campeonatos/[id]`, cada etapa tem o seu painel:
 | Etapa | O que dá para fazer |
 |---|---|
 | Participantes | Selecionar atletas da base ou cadastrar um novo já inscrevendo; baixar as 4 parcelas |
-| Fase de grupos | Ver os grupos, trocar atletas de vaga, lançar os placares dos 3 jogos |
-| Classificação e súmulas | Conferir a ordenação e **baixar as súmulas em PDF** (geral ou por categoria) |
-| 2º sorteio — duplas | Duplas fixas do Ouro e da Prata, com opção de sortear de novo |
+| Fase de grupos | Ver os grupos, trocar atletas de vaga, **excluir um atleta do grupo** (ícone de lixeira), lançar os placares dos 3 jogos |
+| Classificação e súmulas | Conferir a ordenação, **ajustar a classificação à mão** e **baixar as súmulas em PDF** (geral ou por categoria) |
+| 2º sorteio — duplas | Duplas fixas do Ouro e da Prata, com opção de sortear de novo e **súmulas em PDF por divisão** |
 | Chave final | Mata-mata com bye, lançamento de placar e campeão de cada divisão |
 
 ## Identidade visual
@@ -138,7 +138,7 @@ escuro quanto no papel da súmula.
 | **Campeonatos** | entrada | Um por linha: nome, data, local, valor, etapa atual |
 | **Atletas** | entrada | Base única, reaproveitada por todos os campeonatos |
 | **Participantes** | entrada | Inscrição por campeonato: 4 parcelas com SIM/NÃO e data |
-| **Grupos** | entrada | Composição dos grupos, editável à mão |
+| **Grupos** | entrada | Composição dos grupos e a posição manual da classificação, editáveis à mão |
 | **Jogos** | entrada | Confrontos da fase de grupos e placares |
 | **Classificação** | calculada | Reescrita pelo sistema a cada gravação |
 | **Duplas** | entrada | Duplas fixas do 2º sorteio |
@@ -173,6 +173,12 @@ vez com cada um dos outros três como parceiro (AB×CD, AC×BD, AD×BC).
 
 **Classificação.** Soma de vitórias e, no desempate, número de pontos (depois
 saldo e nome). Saída de 1º a 4º. **1º e 2º → Ouro; 3º e 4º → Prata.**
+O botão **"Editar classificação"** abre as setas de subir/descer em cada grupo:
+a ordem salva à mão passa a valer por cima do cálculo — inclusive para definir
+quem vai ao Ouro e à Prata — e fica gravada na coluna *Posição manual* da aba
+Grupos, até o operador voltar o grupo ao automático. Mexer na composição do
+grupo (trocar, adicionar ou excluir um atleta) derruba o ajuste daquele grupo,
+porque os jogos são refeitos.
 
 **2º sorteio — duplas fixas.** Os classificados são separados por lado dentro da
 divisão e sorteados de novo. O pareamento evita repetir a dupla do mesmo grupo.
@@ -184,9 +190,14 @@ potência de 2, as sobrantes avançam direto (bye) e o sistema recusa placar em
 confronto sem as duas duplas. O vencedor de cada jogo é levado à fase seguinte
 automaticamente.
 
-**Súmulas.** PDF com uma folha por grupo — escudo no cabeçalho, faixa da
-bandeira, tabela de atletas com colunas em branco para preencher à mão, os
-confrontos do grupo e linhas de assinatura — mais uma página de classificação.
+**Súmulas.** Uma folha por grupo, com escudo no cabeçalho, faixa da bandeira e
+linhas de assinatura. Na **fase de grupos** a folha é só a lista de jogos, para
+o operador conduzir a rodada no papel. Na **classificação** a mesma folha abre
+com os atletas do grupo já com vitórias, pontos, saldo e divisão apurados, e o
+PDF termina com uma página de classificação geral. No **2º sorteio** sai a
+súmula da segunda fase: uma folha por divisão (Ouro e Prata) com as duplas
+fixas, os grupos de origem e os confrontos da chave — em branco, já na
+estrutura certa, enquanto o mata-mata não foi montado.
 
 ## Pendências do documento
 
@@ -208,7 +219,7 @@ lib/
   armazenamento.ts      escolhe a fonte (Google ou arquivo local) por um booleano "offline"
   regras.ts            idade, categoria, sorteios, jogos, classificação, chave, etapas
   financeiro.ts        consolidação do dinheiro (previsto, recebido, pendências, meses)
-  pdf.ts               súmulas e classificação em PDF
+  pdf.ts               súmulas da fase de grupos, do 2º sorteio e classificação em PDF
   cliente.tsx          estado no navegador, chamadas à API e a preferência online/offline
   constantes.ts        nome do cookie da preferência online/offline (compartilhado client/server)
 components/

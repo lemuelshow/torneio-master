@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Check, FileDown, Save, Shuffle, UserPlus, X } from "lucide-react";
+import { Check, FileDown, Save, Shuffle, Trash2, UserPlus, X } from "lucide-react";
 import { ROTULO_LADO, useDados } from "@/lib/cliente";
 import { categoriasDoCampeonato } from "@/lib/regras";
 import type { Campeonato, IntegranteGrupo, Jogo } from "@/lib/tipos";
@@ -164,6 +164,19 @@ function CartaoGrupo({
     if (ok) fecharPainel();
   };
 
+  const removerAtleta = async (atletaId: string) => {
+    const confirmar = window.confirm(
+      `Tirar ${nomeDe(atletaId)} do grupo ${numero}? Os jogos deste grupo são refeitos e os placares zeram. A inscrição no campeonato continua.`
+    );
+    if (!confirmar) return;
+    await executar("removerDoGrupo", {
+      campeonatoId: campeonato.id,
+      categoria,
+      grupo: numero,
+      atletaId,
+    });
+  };
+
   const cadastrarEAdicionar = async () => {
     const ok = await executar("adicionarAoGrupo", {
       campeonatoId: campeonato.id,
@@ -252,6 +265,18 @@ function CartaoGrupo({
             <Selo tom={g.ladoNoGrupo === "E" ? "ouro" : "neutro"}>
               {ROTULO_LADO[g.ladoNoGrupo]}
             </Selo>
+            {!bloqueado && (
+              <button
+                type="button"
+                onClick={() => removerAtleta(g.atletaId)}
+                disabled={salvando}
+                className="grid size-7 shrink-0 place-items-center rounded-md text-ink-3 transition-colors hover:bg-[color-mix(in_oklab,var(--color-erro)_10%,white)] hover:text-[var(--color-erro)] disabled:cursor-not-allowed disabled:opacity-40"
+                aria-label={`Excluir ${nomeDe(g.atletaId)} do grupo ${numero}`}
+                title="Excluir atleta do grupo"
+              >
+                <Trash2 className="size-3.5" />
+              </button>
+            )}
           </li>
         ))}
       </ul>
@@ -360,7 +385,7 @@ function CartaoGrupo({
                     onChange={(e) => setNovoAtleta({ ...novoAtleta, lado: e.target.value })}
                     className="h-9 text-[13px]"
                   >
-                    <option value="D">Destro</option>
+                    <option value="D">Direito</option>
                     <option value="E">Esquerdo</option>
                     <option value="Ambos">Ambos</option>
                   </Selecao>

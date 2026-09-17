@@ -176,6 +176,7 @@ export function sortearGrupos(
         vaga: vaga + 1,
         atletaId: item.id,
         ladoNoGrupo: item.lado,
+        posicaoManual: null,
       });
     });
 
@@ -252,6 +253,16 @@ export function classificar(estado: Estado, campeonatoId?: string): LinhaClassif
       (j) => j.campeonatoId === camp && j.categoria === categoria && j.grupo === grupo
     );
 
+    // ordem fixada à mão na etapa de classificação, quando o operador ajustou
+    const fixas = new Map(
+      integrantes
+        .filter((i) => i.posicaoManual !== null)
+        .map((i) => [i.atletaId, i.posicaoManual as number])
+    );
+    const ajustadoAMao = fixas.size > 0;
+    const posicaoFixa = (atletaId: string) =>
+      fixas.get(atletaId) ?? Number.MAX_SAFE_INTEGER;
+
     const linhas = integrantes.map((i) => {
       let vitorias = 0;
       let pro = 0;
@@ -284,11 +295,14 @@ export function classificar(estado: Estado, campeonatoId?: string): LinhaClassif
         saldo: pro - contra,
         jogos: disputados,
         divisao: null as Divisao | null,
+        manual: ajustadoAMao,
       };
     });
 
+    // a posição fixada à mão manda; sem ela, vitórias e depois pontos
     linhas.sort(
       (x, y) =>
+        posicaoFixa(x.atletaId) - posicaoFixa(y.atletaId) ||
         y.vitorias - x.vitorias ||
         y.pontosPro - x.pontosPro ||
         y.saldo - x.saldo ||
@@ -360,12 +374,12 @@ export function sortearDuplas(
     grupo: grupoDe.get(l.atletaId) ?? 0,
   }));
 
-  const destros = embaralhar(candidatos.filter((x) => x.lado === "D"));
+  const direitos = embaralhar(candidatos.filter((x) => x.lado === "D"));
   const esquerdos = embaralhar(candidatos.filter((x) => x.lado === "E"));
   const ambos = embaralhar(candidatos.filter((x) => x.lado === "Ambos"));
 
   while (ambos.length) {
-    const alvo = destros.length <= esquerdos.length ? destros : esquerdos;
+    const alvo = direitos.length <= esquerdos.length ? direitos : esquerdos;
     alvo.push(ambos.shift()!);
   }
 
@@ -384,8 +398,8 @@ export function sortearDuplas(
     numero += 1;
   };
 
-  while (destros.length && esquerdos.length) {
-    const d = destros.shift()!;
+  while (direitos.length && esquerdos.length) {
+    const d = direitos.shift()!;
     let indice = esquerdos.findIndex((e) => e.grupo !== d.grupo);
     if (indice === -1) indice = 0;
     const e = esquerdos.splice(indice, 1)[0];
@@ -398,7 +412,7 @@ export function sortearDuplas(
 
   // Sobra de um lado só: em vez de deixar classificados fora, formam-se duplas
   // do mesmo lado — alguém joga fora da posição, e o sistema avisa.
-  const sobrando = [...destros, ...esquerdos];
+  const sobrando = [...direitos, ...esquerdos];
   while (sobrando.length >= 2) {
     const primeiro = sobrando.shift()!;
     let indice = sobrando.findIndex((x) => x.grupo !== primeiro.grupo);
@@ -422,7 +436,8 @@ export function sortearDuplas(
 
 /* ------------------------------------------------ Fase 2: chaveamento */
 
-const NOME_FASE = (duplasNaFase: number) =>
+/** Nome da fase pelo número de duplas que entram nela — usado na chave e na súmula. */
+export const nomeDaFase = (duplasNaFase: number) =>
   duplasNaFase === 2
     ? "Final"
     : duplasNaFase === 4
@@ -470,7 +485,7 @@ export function gerarMataMata(
         campeonatoId,
         categoria,
         divisao,
-        fase: NOME_FASE(restantes),
+        fase: nomeDaFase(restantes),
         ordemFase: ordem,
         jogo: j,
         duplaA: null,

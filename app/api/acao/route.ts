@@ -281,6 +281,7 @@ export async function POST(request: Request) {
         ladoNoGrupo: ["D", "E"].includes(texto(g.ladoNoGrupo).toUpperCase())
           ? (texto(g.ladoNoGrupo).toUpperCase() as "D" | "E")
           : "Ambos",
+        posicaoManual: null,
       }));
 
       const antes = estado.grupos.filter(
@@ -301,6 +302,12 @@ export async function POST(request: Request) {
           .sort((a, b) => a.vaga - b.vaga);
 
         if (!mudou) {
+          const fixaDe = new Map(
+            antes
+              .filter((g) => g.grupo === numeroGrupo)
+              .map((g) => [g.atletaId, g.posicaoManual])
+          );
+          for (const g of doGrupo) g.posicaoManual = fixaDe.get(g.atletaId) ?? null;
           jogos = [
             ...jogos,
             ...estado.jogos.filter(
@@ -409,6 +416,14 @@ export async function POST(request: Request) {
         };
       }
 
+      estado.grupos = estado.grupos.map((g) =>
+        g.campeonatoId === campeonatoId &&
+        g.categoria === categoria &&
+        g.grupo === grupoNumero
+          ? { ...g, posicaoManual: null }
+          : g
+      );
+
       const doGrupo = estado.grupos.filter(
         (g) =>
           g.campeonatoId === campeonatoId &&
@@ -423,6 +438,7 @@ export async function POST(request: Request) {
         vaga: proximaVaga,
         atletaId,
         ladoNoGrupo: atleta.lado,
+        posicaoManual: null,
       };
       estado.grupos.push(novaEntrada);
 
@@ -450,6 +466,59 @@ export async function POST(request: Request) {
           `${atleta.nome} entrou no grupo ${grupoNumero} (${atualizado.length} atleta(s) agora) — faltam para completar 4 e gerar os jogos.`
         );
       }
+      break;
+    }
+
+    case "removerDoGrupo": {
+      const campeonatoId = texto(corpo.campeonatoId);
+      const categoria = texto(corpo.categoria);
+      const grupoNumero = numero(corpo.grupo);
+      const atletaId = texto(corpo.atletaId);
+      if (!campeonatoId || !categoria || !grupoNumero || !atletaId)
+        return erro("Informe o grupo e o atleta a remover.");
+
+      const desteGrupo = (g: IntegranteGrupo) =>
+        g.campeonatoId === campeonatoId &&
+        g.categoria === categoria &&
+        g.grupo === grupoNumero;
+
+      if (!estado.grupos.some((g) => desteGrupo(g) && g.atletaId === atletaId))
+        return erro("Atleta não encontrado neste grupo.", 404);
+
+      // as vagas seguintes sobem e a ordem manual da classificação cai
+      const restantes = estado.grupos
+        .filter((g) => desteGrupo(g) && g.atletaId !== atletaId)
+        .sort((x, y) => x.vaga - y.vaga)
+        .map((g, i) => ({ ...g, vaga: i + 1, posicaoManual: null }));
+
+      estado.grupos = [...estado.grupos.filter((g) => !desteGrupo(g)), ...restantes];
+      estado.jogos = estado.jogos.filter(
+        (j) =>
+          !(
+            j.campeonatoId === campeonatoId &&
+            j.categoria === categoria &&
+            j.grupo === grupoNumero
+          )
+      );
+      if (restantes.length === 4)
+        estado.jogos.push(
+          ...jogosDoGrupo(
+            campeonatoId,
+            categoria,
+            grupoNumero,
+            restantes.map((g) => g.atletaId)
+          )
+        );
+
+      const nomeDoAtleta = estado.atletas.find((x) => x.id === atletaId)?.nome ?? "O atleta";
+      avisos.push(
+        restantes.length === 4
+          ? `${nomeDoAtleta} saiu do grupo ${grupoNumero} — jogos refeitos e placares zerados.`
+          : `${nomeDoAtleta} saiu do grupo ${grupoNumero} (${restantes.length} atleta(s) agora) — sem jogos até completar 4.`
+      );
+      avisos.push(
+        "Ele continua inscrito no campeonato — tire a inscrição pela etapa de participantes, se for o caso."
+      );
       break;
     }
 
@@ -489,6 +558,55 @@ export async function POST(request: Request) {
         pontosA: numero(corpo.pontosA),
         pontosB: numero(corpo.pontosB),
       };
+      break;
+    }
+
+    /* ---------------------------------------------- classificação do grupo */
+    case "ajustarClassificacao": {
+      const campeonatoId = texto(corpo.campeonatoId);
+      const categoria = texto(corpo.categoria);
+      const grupoNumero = numero(corpo.grupo);
+      if (!campeonatoId || !categoria || !grupoNumero) return erro("Grupo inválido.");
+
+      const doGrupo = estado.grupos.filter(
+        (g) =>
+          g.campeonatoId === campeonatoId &&
+          g.categoria === categoria &&
+          g.grupo === grupoNumero
+      );
+      if (!doGrupo.length) return erro("Grupo não encontrado.", 404);
+
+      // lista vazia = volta para a ordenação automática por vitórias e pontos
+      const ordem = (Array.isArray(corpo.ordem) ? corpo.ordem : []).map(texto);
+      const posicaoDe = new Map(ordem.map((id, i) => [id, i + 1]));
+      if (
+        ordem.length &&
+        (ordem.length !== doGrupo.length ||
+          doGrupo.some((g) => !posicaoDe.has(g.atletaId)))
+      )
+        return erro("A ordem enviada não corresponde aos atletas do grupo.");
+
+      estado.grupos = estado.grupos.map((g) =>
+        g.campeonatoId === campeonatoId &&
+        g.categoria === categoria &&
+        g.grupo === grupoNumero
+          ? { ...g, posicaoManual: posicaoDe.get(g.atletaId) ?? null }
+          : g
+      );
+
+      avisos.push(
+        ordem.length
+          ? `Classificação do grupo ${grupoNumero} ajustada à mão — Ouro e Prata seguem a nova ordem.`
+          : `Grupo ${grupoNumero} voltou para a classificação automática.`
+      );
+      if (
+        estado.duplas.some(
+          (d) => d.campeonatoId === campeonatoId && d.categoria === categoria
+        )
+      )
+        avisos.push(
+          `As duplas de ${categoria} foram sorteadas com a classificação anterior — sorteie de novo para refletir o ajuste.`
+        );
       break;
     }
 

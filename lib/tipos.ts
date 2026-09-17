@@ -95,6 +95,8 @@ export interface IntegranteGrupo {
   vaga: number;
   atletaId: string;
   ladoNoGrupo: Lado;
+  /** Posição fixada à mão na classificação do grupo; null = ordem automática. */
+  posicaoManual: number | null;
 }
 
 export interface Jogo {
@@ -187,4 +189,6 @@ export interface LinhaClassificacao {
   saldo: number;
   jogos: number;
   divisao: Divisao | null;
+  /** A ordem deste grupo foi ajustada à mão pelo operador. */
+  manual: boolean;
 }
