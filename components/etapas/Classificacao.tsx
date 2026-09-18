@@ -5,6 +5,7 @@ import {
   ArrowDown, ArrowUp, FileDown, ListOrdered, Medal, RotateCcw, Save, X,
 } from "lucide-react";
 import { useDados } from "@/lib/cliente";
+import { chaveDaLinha, ehDuplasFechadas } from "@/lib/regras";
 import type { Campeonato, LinhaClassificacao } from "@/lib/tipos";
 import {
   Abas, Alerta, Botao, Card, IndicadorCategoria, Selo, Tabela, Titulo, useAbaSelecionada,
@@ -23,12 +24,19 @@ export function EtapaClassificacao({ campeonato }: { campeonato: Campeonato }) {
   const linhas = classificacaoDe(campeonato.id);
   const categorias = [...new Set(linhas.map((l) => l.categoria))].sort();
   const [categoriaSelecionada, selecionarCategoria] = useAbaSelecionada(categorias);
+  const duplasFechadas = ehDuplasFechadas(campeonato);
+  const rotuloOcupante = duplasFechadas ? "Dupla" : "Atleta";
 
   const baixar = async (categoria?: string) => {
     setGerando(categoria ?? "todas");
     try {
-      const { gerarPdfSumulas } = await import("@/lib/pdf");
-      await gerarPdfSumulas({ estado, campeonato, classificacao: linhas, categoria });
+      if (duplasFechadas) {
+        const { gerarPdfSumulasGruposDuplas } = await import("@/lib/pdf");
+        await gerarPdfSumulasGruposDuplas({ estado, campeonato, categoria });
+      } else {
+        const { gerarPdfSumulas } = await import("@/lib/pdf");
+        await gerarPdfSumulas({ estado, campeonato, classificacao: linhas, categoria });
+      }
     } finally {
       setGerando("");
     }
@@ -111,17 +119,25 @@ export function EtapaClassificacao({ campeonato }: { campeonato: Campeonato }) {
 
       {editando && (
         <Alerta tom="info">
-          Use as setas para reordenar cada grupo e depois salve. A ordem manual manda
-          na classificação: o 1º e o 2º vão para o <strong>Ouro</strong>, o 3º e o 4º
-          para a <strong>Prata</strong>. Ela fica valendo até você editar de novo ou
-          voltar ao automático.
+          Use as setas para reordenar cada grupo e depois salve. A ordem manual manda na
+          classificação{" "}
+          {duplasFechadas ? (
+            <>e é ela que define quem entra na chave final.</>
+          ) : (
+            <>
+              : o 1º e o 2º vão para o <strong>Ouro</strong>, o 3º e o 4º para a{" "}
+              <strong>Prata</strong>.
+            </>
+          )}{" "}
+          Ela fica valendo até você editar de novo ou voltar ao automático.
         </Alerta>
       )}
 
       {semJogo > 0 && (
         <Alerta tom="alerta">
-          {semJogo} atleta(s) ainda sem nenhum jogo lançado — eles aparecem no fim do
-          grupo e não recebem divisão.
+          {semJogo} {duplasFechadas ? "dupla(s)" : "atleta(s)"} ainda sem nenhum jogo
+          lançado — {duplasFechadas ? "elas" : "eles"} aparecem no fim do grupo
+          {duplasFechadas ? " e ficam fora da chave." : " e não recebem divisão."}
         </Alerta>
       )}
 
@@ -160,9 +176,10 @@ export function EtapaClassificacao({ campeonato }: { campeonato: Campeonato }) {
             {numeros.map((numero) => {
               const doGrupo = daCategoria.filter((l) => l.grupo === numero);
               const chave = chaveGrupo(categoria, numero);
-              const salva = doGrupo.map((l) => l.atletaId);
+              // a identidade é o atleta no sorteio e a dupla nas duplas fechadas
+              const salva = doGrupo.map((l) => chaveDaLinha(l));
               const ordem = ordens[chave] ?? salva;
-              const porId = new Map(doGrupo.map((l) => [l.atletaId, l]));
+              const porId = new Map(doGrupo.map((l) => [chaveDaLinha(l), l]));
               const visiveis = ordem
                 .map((id) => porId.get(id))
                 .filter((l): l is LinhaClassificacao => Boolean(l));
@@ -181,17 +198,17 @@ export function EtapaClassificacao({ campeonato }: { campeonato: Campeonato }) {
                     minimo={editando ? 720 : 620}
                     colunas={[
                       "Pos.",
-                      "Atleta",
+                      rotuloOcupante,
                       "V",
                       "Pontos pró",
                       "Contra",
                       "Saldo",
-                      "Divisão",
+                      ...(duplasFechadas ? [] : ["Divisão"]),
                       ...(editando ? ["Mover"] : []),
                     ]}
                   >
                     {visiveis.map((l, i) => (
-                      <tr key={l.atletaId} className="hover:bg-marinho-50/40">
+                      <tr key={chaveDaLinha(l)} className="hover:bg-marinho-50/40">
                         <td className="px-3 py-2 font-bold text-marinho-700">{i + 1}º</td>
                         <td className="px-3 py-2 font-medium text-ink">{l.nome}</td>
                         <td className="px-3 py-2 font-bold text-marinho-800">
@@ -202,15 +219,17 @@ export function EtapaClassificacao({ campeonato }: { campeonato: Campeonato }) {
                         <td className="px-3 py-2 text-ink-2">
                           {l.saldo > 0 ? `+${l.saldo}` : l.saldo}
                         </td>
-                        <td className="px-3 py-2">
-                          {l.jogos === 0 ? (
-                            <span className="text-ink-3">—</span>
-                          ) : (
-                            <Selo tom={i < 2 ? "ouro" : "prata"}>
-                              {i < 2 ? "Ouro" : "Prata"}
-                            </Selo>
-                          )}
-                        </td>
+                        {!duplasFechadas && (
+                          <td className="px-3 py-2">
+                            {l.jogos === 0 ? (
+                              <span className="text-ink-3">—</span>
+                            ) : (
+                              <Selo tom={i < 2 ? "ouro" : "prata"}>
+                                {i < 2 ? "Ouro" : "Prata"}
+                              </Selo>
+                            )}
+                          </td>
+                        )}
                         {editando && (
                           <td className="px-3 py-2">
                             <div className="flex gap-1">

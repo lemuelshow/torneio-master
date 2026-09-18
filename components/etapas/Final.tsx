@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Crown, Shuffle } from "lucide-react";
+import { Crown, FileDown, Shuffle } from "lucide-react";
 import { useDados } from "@/lib/cliente";
-import { vencedorDoJogo } from "@/lib/regras";
+import { ehDuplasFechadas, vencedorDoJogo } from "@/lib/regras";
 import type { Campeonato, Divisao, JogoMataMata } from "@/lib/tipos";
 import {
   Abas, Alerta, Botao, Card, IndicadorCategoria, Selo, Titulo, useAbaSelecionada, Vazio,
@@ -111,12 +111,16 @@ function Chave({
   divisao,
   jogos,
   bloqueado,
+  rotuloDaChave,
+  rotuloDoCampeao,
 }: {
   campeonato: Campeonato;
   categoria: string;
   divisao: Divisao;
   jogos: JogoMataMata[];
   bloqueado: boolean;
+  rotuloDaChave: string;
+  rotuloDoCampeao: string;
 }) {
   const { estado, executar, salvando, nomeDe } = useDados();
 
@@ -134,7 +138,7 @@ function Chave({
     <div className="rounded-xl border border-line">
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-t-xl bg-plane px-3 py-2">
         <span className="flex items-center gap-2 text-[13px] font-bold text-marinho-800">
-          Divisão {divisao}
+          {rotuloDaChave}
           <Selo tom={divisao === "Ouro" ? "ouro" : "prata"}>{jogos.length} jogos</Selo>
         </span>
         {!bloqueado && (
@@ -191,7 +195,7 @@ function Chave({
                 className={`mx-auto size-5 ${campeao ? "text-ouro-600" : "text-ink-3"}`}
               />
               <p className="mt-1 text-[10px] font-bold uppercase tracking-wide text-ink-3">
-                Campeão {divisao}
+                {rotuloDoCampeao}
               </p>
               <p
                 className={`text-[13px] ${
@@ -216,12 +220,29 @@ export function EtapaFinal({
   bloqueado: boolean;
 }) {
   const { estado, nomeDe } = useDados();
+  const [gerando, setGerando] = useState("");
+  const duplasFechadas = ehDuplasFechadas(campeonato);
   const chave = estado.mataMata.filter((m) => m.campeonatoId === campeonato.id);
   const duplas = estado.duplas.filter((d) => d.campeonatoId === campeonato.id);
   const categorias = [
     ...new Set([...chave.map((m) => m.categoria), ...duplas.map((d) => d.categoria)]),
   ].sort();
   const [categoriaSelecionada, selecionarCategoria] = useAbaSelecionada(categorias);
+
+  const baixarChave = async (cat?: string) => {
+    setGerando(cat ?? "todas");
+    try {
+      const { gerarPdfSumulasDuplas } = await import("@/lib/pdf");
+      await gerarPdfSumulasDuplas({
+        estado,
+        campeonato,
+        categoria: cat,
+        chaveUnica: true,
+      });
+    } finally {
+      setGerando("");
+    }
+  };
 
   if (!chave.length && !duplas.length)
     return (
@@ -237,7 +258,49 @@ export function EtapaFinal({
         Quem vence avança sozinho para a próxima fase. Quando o número de duplas não
         fecha uma potência de 2, alguém passa direto (bye) — esse confronto não aceita
         placar.
+        {duplasFechadas && (
+          <>
+            {" "}
+            A chave é única por categoria, montada por{" "}
+            <strong>cruzamento olímpico</strong>: o 1º e o 2º de um mesmo grupo caem em
+            metades opostas e só podem se reencontrar na final.
+          </>
+        )}
       </Alerta>
+
+      {duplasFechadas && (
+        <Card>
+          <Titulo
+            dica="Uma folha por categoria, com as duplas classificadas e os confrontos da chave."
+            acao={
+              <Botao
+                variante="ouro"
+                onClick={() => baixarChave()}
+                disabled={gerando !== ""}
+              >
+                <FileDown className="size-4" />
+                {gerando === "todas" ? "Gerando…" : "Baixar súmulas da chave (PDF)"}
+              </Botao>
+            }
+          >
+            Súmula da chave
+          </Titulo>
+          <div className="flex flex-wrap gap-2">
+            {categorias.map((c) => (
+              <Botao
+                key={c}
+                variante="secundario"
+                pequeno
+                onClick={() => baixarChave(c)}
+                disabled={gerando !== ""}
+              >
+                <FileDown className="size-3.5" />
+                {gerando === c ? "Gerando…" : c}
+              </Botao>
+            ))}
+          </div>
+        </Card>
+      )}
 
       <Abas
         itens={categorias.map((c) => ({ chave: c, rotulo: c }))}
@@ -252,7 +315,7 @@ export function EtapaFinal({
         <Card key={categoria}>
           <Titulo>{categoria}</Titulo>
           <div className="space-y-3">
-            {DIVISOES.map((divisao) => {
+            {(duplasFechadas ? (["Ouro"] as Divisao[]) : DIVISOES).map((divisao) => {
               const jogos = chave.filter(
                 (m) => m.categoria === categoria && m.divisao === divisao
               );
@@ -265,6 +328,10 @@ export function EtapaFinal({
                     divisao={divisao}
                     jogos={jogos}
                     bloqueado={bloqueado}
+                    rotuloDaChave={
+                      duplasFechadas ? "Chave da categoria" : `Divisão ${divisao}`
+                    }
+                    rotuloDoCampeao={duplasFechadas ? "Campeão" : `Campeão ${divisao}`}
                   />
                 );
 
@@ -280,8 +347,10 @@ export function EtapaFinal({
                 >
                   <Crown className="size-5 text-ouro-600" />
                   <span className="text-[13px] text-ink">
-                    <strong className="font-bold">Divisão {divisao}</strong> tem apenas uma
-                    dupla —{" "}
+                    <strong className="font-bold">
+                      {duplasFechadas ? categoria : `Divisão ${divisao}`}
+                    </strong>{" "}
+                    tem apenas uma dupla —{" "}
                     <strong className="font-semibold">
                       {nomeDe(sozinha[0].atletaD)} + {nomeDe(sozinha[0].atletaE)}
                     </strong>{" "}

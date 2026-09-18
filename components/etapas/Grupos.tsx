@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Check, FileDown, Save, Shuffle, Trash2, UserPlus, X } from "lucide-react";
 import { ROTULO_LADO, useDados } from "@/lib/cliente";
 import { categoriasDoCampeonato } from "@/lib/regras";
+import { maiusculo } from "@/lib/texto";
 import type { Campeonato, IntegranteGrupo, Jogo } from "@/lib/tipos";
 import {
   Abas, Alerta, Botao, Campo, Card, Entrada, IndicadorCategoria, Selecao, Selo, Tabela,
@@ -354,9 +355,11 @@ function CartaoGrupo({
                 <Campo rotulo="Nome">
                   <Entrada
                     value={novoAtleta.nome}
-                    onChange={(e) => setNovoAtleta({ ...novoAtleta, nome: e.target.value })}
+                    onChange={(e) =>
+                      setNovoAtleta({ ...novoAtleta, nome: maiusculo(e.target.value) })
+                    }
                     placeholder="Nome completo"
-                    className="h-9"
+                    className="h-9 uppercase"
                   />
                 </Campo>
                 <Campo rotulo="Nascimento" dica="Define a categoria na data do evento">

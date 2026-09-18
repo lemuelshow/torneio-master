@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CheckCircle2, Download, Plus, RefreshCw, Save, Trash2 } from "lucide-react";
+import { CaseUpper, CheckCircle2, Download, Plus, RefreshCw, Save, Trash2 } from "lucide-react";
 import { useDados } from "@/lib/cliente";
 import type { FaixaCategoria, Sexo } from "@/lib/tipos";
 import {
@@ -215,6 +215,20 @@ export default function ConfigPage() {
             />
           </Campo>
         </div>
+      </Card>
+
+      <Card>
+        <Titulo dica="Nome e apelido são gravados em MAIÚSCULO. Use isto para acertar de uma vez os cadastros antigos e os digitados direto na planilha — pode rodar quantas vezes quiser.">
+          Padronização da base
+        </Titulo>
+        <Botao
+          variante="secundario"
+          onClick={() => executar("padronizarNomes")}
+          disabled={salvando}
+        >
+          <CaseUpper className="size-4" />
+          Padronizar nomes em MAIÚSCULO
+        </Botao>
       </Card>
 
       <Card padding={false}>

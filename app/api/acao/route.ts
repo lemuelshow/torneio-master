@@ -3,11 +3,15 @@ import { NextResponse } from "next/server";
 import { erroDeArmazenamento, gravarEstado, lerEstado } from "@/lib/armazenamento";
 import { COOKIE_OFFLINE } from "@/lib/constantes";
 import {
-  ORDEM_ETAPAS, categoriasAtivas, categoriasDoCampeonato, gerarMataMata, jogosDoGrupo,
-  novoId, podeAvancar, propagarMataMata, sortearDuplas, sortearGrupos,
+  ORDEM_ETAPAS, categoriaDaDupla, categoriasAtivas, categoriasDoCampeonato,
+  chaveDoIntegrante, ehDuplasFechadas, gerarChaveCruzamento, gerarMataMata,
+  jogosDoGrupo, novoId, ordemEtapas, podeAvancar, propagarMataMata, sortearDuplas,
+  sortearGrupos, sortearGruposDeDuplas,
 } from "@/lib/regras";
+import { chaveDeNome, normalizarNome } from "@/lib/texto";
 import type {
-  Atleta, Campeonato, Divisao, Estado, Etapa, IntegranteGrupo, Participante,
+  Atleta, Campeonato, CorteDeClassificacao, Divisao, Dupla, Estado, Etapa, Formato,
+  IntegranteGrupo, Participante,
 } from "@/lib/tipos";
 
 export const runtime = "nodejs";
@@ -22,19 +26,82 @@ const numero = (v: unknown) => {
   return Number.isFinite(n) ? n : null;
 };
 const booleano = (v: unknown) => v === true || v === "true" || v === 1;
+/** Nome de atleta entra sempre em MAIÚSCULO, venha de onde vier. */
+const nomeProprio = (v: unknown) => normalizarNome(String(v ?? ""));
+const paraFormato = (v: unknown): Formato =>
+  texto(v) === "duplas_fechadas" ? "duplas_fechadas" : "sorteio";
+const paraCorte = (v: unknown): CorteDeClassificacao =>
+  texto(v) === "1" ? "1" : texto(v) === "2+3" ? "2+3" : "2";
 const hoje = () => new Date().toISOString().slice(0, 10);
 
-/** Remove tudo que pertence a um campeonato a partir de uma etapa. */
-function limparDaEtapa(estado: Estado, campeonatoId: string, etapa: Etapa) {
+/**
+ * Remove tudo que pertence a um campeonato a partir de uma etapa.
+ * `preservarDuplas` existe por causa do formato de duplas fechadas: lá a dupla
+ * é a inscrição, não um produto do 2º sorteio, e voltar etapa não pode apagá-la.
+ */
+function limparDaEtapa(
+  estado: Estado,
+  campeonatoId: string,
+  etapa: Etapa,
+  preservarDuplas = false
+) {
   const indice = ORDEM_ETAPAS.indexOf(etapa);
   if (indice <= ORDEM_ETAPAS.indexOf("grupos")) {
     estado.grupos = estado.grupos.filter((g) => g.campeonatoId !== campeonatoId);
     estado.jogos = estado.jogos.filter((j) => j.campeonatoId !== campeonatoId);
   }
-  if (indice <= ORDEM_ETAPAS.indexOf("duplas"))
+  if (indice <= ORDEM_ETAPAS.indexOf("duplas") && !preservarDuplas)
     estado.duplas = estado.duplas.filter((d) => d.campeonatoId !== campeonatoId);
   if (indice <= ORDEM_ETAPAS.indexOf("final"))
     estado.mataMata = estado.mataMata.filter((m) => m.campeonatoId !== campeonatoId);
+}
+
+/** Numera as duplas inscritas de 1 em diante, dentro de cada categoria. */
+function renumerarDuplas(estado: Estado, campeonatoId: string) {
+  const contagem = new Map<string, number>();
+  const novoNumero = new Map<string, number>();
+  const ordenadas = [...estado.duplas]
+    .filter((d) => d.campeonatoId === campeonatoId && d.origem === "inscricao")
+    .sort(
+      (a, b) =>
+        a.categoria.localeCompare(b.categoria) ||
+        a.numero - b.numero ||
+        a.id.localeCompare(b.id)
+    );
+  for (const d of ordenadas) {
+    const n = (contagem.get(d.categoria) ?? 0) + 1;
+    contagem.set(d.categoria, n);
+    novoNumero.set(d.id, n);
+  }
+  estado.duplas = estado.duplas.map((d) =>
+    novoNumero.has(d.id) ? { ...d, numero: novoNumero.get(d.id) as number } : d
+  );
+}
+
+/**
+ * A cobrança continua por atleta mesmo com dupla fechada: os dois entram no
+ * financeiro com o valor e as parcelas do torneio, na categoria da dupla.
+ */
+function inscreverAtletasDaDupla(estado: Estado, campeonato: Campeonato, dupla: Dupla) {
+  for (const atletaId of [dupla.atletaD, dupla.atletaE]) {
+    const indice = estado.participantes.findIndex(
+      (p) => p.campeonatoId === campeonato.id && p.atletaId === atletaId
+    );
+    if (indice < 0)
+      estado.participantes.push({
+        campeonatoId: campeonato.id,
+        atletaId,
+        categoriaManual: dupla.categoria,
+        valorTotal: campeonato.valorInscricao,
+        p1: false, p2: false, p3: false, p4: false,
+        dataP1: "", dataP2: "", dataP3: "", dataP4: "",
+      });
+    else
+      estado.participantes[indice] = {
+        ...estado.participantes[indice],
+        categoriaManual: dupla.categoria,
+      };
+  }
 }
 
 export async function POST(request: Request) {
@@ -84,16 +151,22 @@ export async function POST(request: Request) {
     /* ---------------------------------------------------- base de atletas */
     case "salvarAtleta": {
       const a = (corpo.atleta ?? {}) as Corpo;
-      const nome = texto(a.nome);
+      const nome = nomeProprio(a.nome);
       if (nome.length < 3) return erro("Informe o nome do atleta.");
       if (!texto(a.nascimento))
         return erro("Informe a data de nascimento — ela define a categoria.");
 
       const id = texto(a.id) || novoId("AT");
+      // o mesmo nome escrito de outro jeito ("JOÃO" / "Joao") avisa, mas não trava
+      const homonimo = estado.atletas.find(
+        (x) => x.id !== id && chaveDeNome(x.nome) === chaveDeNome(nome)
+      );
+      if (homonimo) avisos.push(`Já existe um atleta chamado ${homonimo.nome} na base.`);
+
       const registro: Atleta = {
         id,
         nome,
-        apelido: texto(a.apelido),
+        apelido: nomeProprio(a.apelido),
         cidade: texto(a.cidade),
         nascimento: texto(a.nascimento),
         sexo: texto(a.sexo).toUpperCase() === "F" ? "F" : "M",
@@ -129,6 +202,28 @@ export async function POST(request: Request) {
       break;
     }
 
+    /**
+     * Regrava a base inteira com nome e apelido normalizados. Idempotente:
+     * rodar de novo não muda mais nada. Serve para os nomes que já estavam
+     * gravados em minúsculo, inclusive os digitados direto na planilha.
+     */
+    case "padronizarNomes": {
+      let alterados = 0;
+      estado.atletas = estado.atletas.map((a) => {
+        const nome = normalizarNome(a.nome);
+        const apelido = normalizarNome(a.apelido);
+        if (nome === a.nome && apelido === a.apelido) return a;
+        alterados++;
+        return { ...a, nome, apelido };
+      });
+      avisos.push(
+        alterados === 0
+          ? "Todos os nomes já estavam em MAIÚSCULO."
+          : `${alterados} atleta(s) tiveram nome ou apelido padronizados em MAIÚSCULO.`
+      );
+      break;
+    }
+
     case "excluirAtleta": {
       const id = texto(corpo.id);
       const emCampeonato = estado.participantes.some((p) => p.atletaId === id);
@@ -154,6 +249,9 @@ export async function POST(request: Request) {
         local: texto(x.local),
         valorInscricao: numero(x.valorInscricao) ?? estado.config.valorInscricao,
         atletasPorGrupo: numero(x.atletasPorGrupo) ?? estado.config.atletasPorGrupo,
+        duplasPorGrupo: numero(x.duplasPorGrupo) ?? 3,
+        formato: paraFormato(x.formato),
+        corteDeClassificacao: paraCorte(x.corteDeClassificacao),
         etapa: "participantes",
         criadoEm: hoje(),
         observacoes: texto(x.observacoes),
@@ -176,6 +274,12 @@ export async function POST(request: Request) {
           numero(x.valorInscricao) ?? estado.campeonatos[indice].valorInscricao,
         atletasPorGrupo:
           numero(x.atletasPorGrupo) ?? estado.campeonatos[indice].atletasPorGrupo,
+        duplasPorGrupo:
+          numero(x.duplasPorGrupo) ?? estado.campeonatos[indice].duplasPorGrupo,
+        // o formato não muda depois de criado: mudaria o significado dos grupos
+        corteDeClassificacao: x.corteDeClassificacao
+          ? paraCorte(x.corteDeClassificacao)
+          : estado.campeonatos[indice].corteDeClassificacao,
         observacoes: texto(x.observacoes),
       };
       break;
@@ -278,6 +382,7 @@ export async function POST(request: Request) {
         grupo: numero(g.grupo) ?? 1,
         vaga: numero(g.vaga) ?? 1,
         atletaId: texto(g.atletaId),
+        duplaId: null,
         ladoNoGrupo: ["D", "E"].includes(texto(g.ladoNoGrupo).toUpperCase())
           ? (texto(g.ladoNoGrupo).toUpperCase() as "D" | "E")
           : "Ambos",
@@ -361,7 +466,7 @@ export async function POST(request: Request) {
 
       const novoAtleta = corpo.atleta as Corpo | undefined;
       if (!atletaId && novoAtleta) {
-        const nome = texto(novoAtleta.nome);
+        const nome = nomeProprio(novoAtleta.nome);
         if (nome.length < 3) return erro("Informe o nome do atleta.");
         if (!texto(novoAtleta.nascimento))
           return erro("Informe a data de nascimento — ela define a categoria.");
@@ -369,7 +474,7 @@ export async function POST(request: Request) {
         estado.atletas.push({
           id: atletaId,
           nome,
-          apelido: texto(novoAtleta.apelido),
+          apelido: nomeProprio(novoAtleta.apelido),
           cidade: texto(novoAtleta.cidade),
           nascimento: texto(novoAtleta.nascimento),
           sexo: texto(novoAtleta.sexo).toUpperCase() === "F" ? "F" : "M",
@@ -437,6 +542,7 @@ export async function POST(request: Request) {
         grupo: grupoNumero,
         vaga: proximaVaga,
         atletaId,
+        duplaId: null,
         ladoNoGrupo: atleta.lado,
         posicaoManual: null,
       };
@@ -525,7 +631,12 @@ export async function POST(request: Request) {
     case "sortearGrupos": {
       const campeonatoId = texto(corpo.campeonatoId);
       const categoria = texto(corpo.categoria);
-      const resultado = sortearGrupos(estado, campeonatoId, categoria);
+      const campeonato = acharCampeonato(campeonatoId);
+      if (!campeonato) return erro("Campeonato não encontrado.", 404);
+      const duplasFechadas = ehDuplasFechadas(campeonato);
+      const resultado = duplasFechadas
+        ? sortearGruposDeDuplas(estado, campeonatoId, categoria)
+        : sortearGrupos(estado, campeonatoId, categoria);
       if (!resultado.grupos.length) return erro(resultado.avisos.join(" "));
 
       estado.grupos = [
@@ -540,9 +651,12 @@ export async function POST(request: Request) {
         ),
         ...resultado.jogos,
       ];
-      estado.duplas = estado.duplas.filter(
-        (d) => !(d.campeonatoId === campeonatoId && d.categoria === categoria)
-      );
+      // nas duplas fechadas a dupla é a inscrição: refazer o sorteio dos grupos
+      // não pode apagá-la, só a chave que dependia da classificação antiga
+      if (!duplasFechadas)
+        estado.duplas = estado.duplas.filter(
+          (d) => !(d.campeonatoId === campeonatoId && d.categoria === categoria)
+        );
       estado.mataMata = estado.mataMata.filter(
         (m) => !(m.campeonatoId === campeonatoId && m.categoria === categoria)
       );
@@ -577,20 +691,21 @@ export async function POST(request: Request) {
       if (!doGrupo.length) return erro("Grupo não encontrado.", 404);
 
       // lista vazia = volta para a ordenação automática por vitórias e pontos
+      // a ordem vem em ids de atleta (sorteio) ou de dupla (duplas fechadas)
       const ordem = (Array.isArray(corpo.ordem) ? corpo.ordem : []).map(texto);
       const posicaoDe = new Map(ordem.map((id, i) => [id, i + 1]));
       if (
         ordem.length &&
         (ordem.length !== doGrupo.length ||
-          doGrupo.some((g) => !posicaoDe.has(g.atletaId)))
+          doGrupo.some((g) => !posicaoDe.has(chaveDoIntegrante(g))))
       )
-        return erro("A ordem enviada não corresponde aos atletas do grupo.");
+        return erro("A ordem enviada não corresponde aos integrantes do grupo.");
 
       estado.grupos = estado.grupos.map((g) =>
         g.campeonatoId === campeonatoId &&
         g.categoria === categoria &&
         g.grupo === grupoNumero
-          ? { ...g, posicaoManual: posicaoDe.get(g.atletaId) ?? null }
+          ? { ...g, posicaoManual: posicaoDe.get(chaveDoIntegrante(g)) ?? null }
           : g
       );
 
@@ -607,6 +722,156 @@ export async function POST(request: Request) {
         avisos.push(
           `As duplas de ${categoria} foram sorteadas com a classificação anterior — sorteie de novo para refletir o ajuste.`
         );
+      break;
+    }
+
+    /* ------------------------------ inscrição de duplas (duplas fechadas) */
+    case "salvarDuplaInscrita": {
+      const campeonatoId = texto(corpo.campeonatoId);
+      const campeonato = acharCampeonato(campeonatoId);
+      if (!campeonato) return erro("Campeonato não encontrado.", 404);
+      if (!ehDuplasFechadas(campeonato))
+        return erro("Este torneio não é do formato de duplas fechadas.");
+
+      const duplaId = texto(corpo.duplaId);
+      const id1 = texto(corpo.atleta1);
+      const id2 = texto(corpo.atleta2);
+      if (!id1 || !id2) return erro("Escolha os dois atletas da dupla.");
+      if (id1 === id2) return erro("A dupla precisa de dois atletas diferentes.");
+
+      const atleta1 = estado.atletas.find((a) => a.id === id1);
+      const atleta2 = estado.atletas.find((a) => a.id === id2);
+      if (!atleta1 || !atleta2) return erro("Atleta não encontrado.", 404);
+
+      // o mesmo atleta não pode estar em duas duplas do mesmo torneio
+      const jaEmOutra = estado.duplas.find(
+        (d) =>
+          d.campeonatoId === campeonatoId &&
+          d.origem === "inscricao" &&
+          d.id !== duplaId &&
+          (d.atletaD === id1 || d.atletaE === id1 || d.atletaD === id2 || d.atletaE === id2)
+      );
+      if (jaEmOutra) {
+        const repetido = [jaEmOutra.atletaD, jaEmOutra.atletaE].find(
+          (x) => x === id1 || x === id2
+        );
+        const quem = estado.atletas.find((a) => a.id === repetido)?.nome ?? "Esse atleta";
+        return erro(
+          quem + " já está na dupla " + jaEmOutra.numero + " de " + jaEmOutra.categoria + "."
+        );
+      }
+
+      const pedida = texto(corpo.categoria);
+      const categoria = categoriasAtivas(estado.config).includes(pedida)
+        ? pedida
+        : categoriaDaDupla(atleta1, atleta2, estado.config, campeonato.data);
+      if (!categoria)
+        return erro(
+          "Nenhuma faixa ativa serve para esta dupla na data do torneio — escolha a categoria à mão."
+        );
+
+      const existente = estado.duplas.find(
+        (d) => d.id === duplaId && d.campeonatoId === campeonatoId
+      );
+      const registro: Dupla = {
+        id: existente?.id ?? novoId("DI"),
+        campeonatoId,
+        categoria,
+        // chave única da categoria neste formato
+        divisao: "Ouro",
+        numero: existente?.numero ?? Number.MAX_SAFE_INTEGER,
+        atletaD: id1,
+        atletaE: id2,
+        origem: "inscricao",
+        cabecaDeChave:
+          corpo.cabecaDeChave === undefined
+            ? (existente?.cabecaDeChave ?? false)
+            : booleano(corpo.cabecaDeChave),
+      };
+
+      estado.duplas = existente
+        ? estado.duplas.map((d) => (d.id === existente.id ? registro : d))
+        : [...estado.duplas, registro];
+
+      renumerarDuplas(estado, campeonatoId);
+      inscreverAtletasDaDupla(estado, campeonato, registro);
+
+      if (estado.grupos.some((g) => g.campeonatoId === campeonatoId))
+        avisos.push(
+          "Os grupos já estavam sorteados — sorteie de novo para a mudança valer."
+        );
+      break;
+    }
+
+    case "excluirDuplaInscrita": {
+      const campeonatoId = texto(corpo.campeonatoId);
+      const duplaId = texto(corpo.duplaId);
+      if (!acharCampeonato(campeonatoId)) return erro("Campeonato não encontrado.", 404);
+      const dupla = estado.duplas.find(
+        (d) => d.id === duplaId && d.campeonatoId === campeonatoId
+      );
+      if (!dupla) return erro("Dupla não encontrada.", 404);
+
+      estado.duplas = estado.duplas.filter((d) => d.id !== duplaId);
+
+      // sem essa dupla o sorteio daquela categoria não vale mais
+      const estavaEmGrupo = estado.grupos.some(
+        (g) => g.campeonatoId === campeonatoId && g.duplaId === duplaId
+      );
+      if (estavaEmGrupo) {
+        estado.grupos = estado.grupos.filter(
+          (g) => !(g.campeonatoId === campeonatoId && g.categoria === dupla.categoria)
+        );
+        estado.jogos = estado.jogos.filter(
+          (j) => !(j.campeonatoId === campeonatoId && j.categoria === dupla.categoria)
+        );
+        avisos.push(
+          "Os grupos de " + dupla.categoria + " foram desfeitos — sorteie de novo."
+        );
+      }
+      estado.mataMata = estado.mataMata.filter(
+        (m) => !(m.campeonatoId === campeonatoId && m.categoria === dupla.categoria)
+      );
+
+      // tira do financeiro só quem não pagou nada e não está em outra dupla
+      for (const atletaId of [dupla.atletaD, dupla.atletaE]) {
+        const emOutra = estado.duplas.some(
+          (d) =>
+            d.campeonatoId === campeonatoId &&
+            (d.atletaD === atletaId || d.atletaE === atletaId)
+        );
+        if (emOutra) continue;
+        const inscricao = estado.participantes.find(
+          (p) => p.campeonatoId === campeonatoId && p.atletaId === atletaId
+        );
+        if (!inscricao) continue;
+        if (inscricao.p1 || inscricao.p2 || inscricao.p3 || inscricao.p4) {
+          const quem = estado.atletas.find((a) => a.id === atletaId)?.nome ?? "O atleta";
+          avisos.push(
+            quem + " tem parcela paga — a inscrição dele continua no Financeiro."
+          );
+          continue;
+        }
+        estado.participantes = estado.participantes.filter(
+          (p) => !(p.campeonatoId === campeonatoId && p.atletaId === atletaId)
+        );
+      }
+
+      renumerarDuplas(estado, campeonatoId);
+      break;
+    }
+
+    case "definirCabecaDeChave": {
+      const campeonatoId = texto(corpo.campeonatoId);
+      const duplaId = texto(corpo.duplaId);
+      const indice = estado.duplas.findIndex(
+        (d) => d.id === duplaId && d.campeonatoId === campeonatoId
+      );
+      if (indice < 0) return erro("Dupla não encontrada.", 404);
+      estado.duplas[indice] = {
+        ...estado.duplas[indice],
+        cabecaDeChave: booleano(corpo.cabecaDeChave),
+      };
       break;
     }
 
@@ -644,8 +909,15 @@ export async function POST(request: Request) {
     case "gerarMataMata": {
       const campeonatoId = texto(corpo.campeonatoId);
       const categoria = texto(corpo.categoria);
-      const divisao = (texto(corpo.divisao) === "Prata" ? "Prata" : "Ouro") as Divisao;
-      const resultado = gerarMataMata(estado, campeonatoId, categoria, divisao);
+      const campeonato = acharCampeonato(campeonatoId);
+      if (!campeonato) return erro("Campeonato não encontrado.", 404);
+      // sem Ouro/Prata nas duplas fechadas: chave única, gravada como "Ouro"
+      const divisao = ehDuplasFechadas(campeonato)
+        ? ("Ouro" as Divisao)
+        : ((texto(corpo.divisao) === "Prata" ? "Prata" : "Ouro") as Divisao);
+      const resultado = ehDuplasFechadas(campeonato)
+        ? gerarChaveCruzamento(estado, campeonatoId, categoria)
+        : gerarMataMata(estado, campeonatoId, categoria, divisao);
       if (!resultado.jogos.length) return erro(resultado.avisos.join(" "));
 
       estado.mataMata = [
@@ -701,6 +973,52 @@ export async function POST(request: Request) {
       if (!permitido.ok) return erro(permitido.motivo ?? "Não é possível avançar agora.");
 
       const categorias = categoriasDoCampeonato(estado, campeonatoId);
+
+      if (ehDuplasFechadas(campeonato)) {
+        if (campeonato.etapa === "participantes") {
+          for (const categoria of categorias) {
+            const resultado = sortearGruposDeDuplas(estado, campeonatoId, categoria);
+            avisos.push(...resultado.avisos);
+            if (!resultado.grupos.length) continue;
+            estado.grupos = [
+              ...estado.grupos.filter(
+                (g) => !(g.campeonatoId === campeonatoId && g.categoria === categoria)
+              ),
+              ...resultado.grupos,
+            ];
+            estado.jogos = [
+              ...estado.jogos.filter(
+                (j) => !(j.campeonatoId === campeonatoId && j.categoria === categoria)
+              ),
+              ...resultado.jogos,
+            ];
+          }
+          if (!estado.grupos.some((g) => g.campeonatoId === campeonatoId))
+            return erro("Nenhum grupo pôde ser formado. Confira as duplas inscritas.");
+          estado.campeonatos[indice] = { ...campeonato, etapa: "grupos" };
+        } else if (campeonato.etapa === "grupos") {
+          estado.campeonatos[indice] = { ...campeonato, etapa: "classificacao" };
+        } else if (campeonato.etapa === "classificacao") {
+          // pula o 2º sorteio: a dupla já é fixa desde a inscrição
+          for (const categoria of categorias) {
+            const resultado = gerarChaveCruzamento(estado, campeonatoId, categoria);
+            avisos.push(...resultado.avisos);
+            if (!resultado.jogos.length) continue;
+            estado.mataMata = [
+              ...estado.mataMata.filter(
+                (m) => !(m.campeonatoId === campeonatoId && m.categoria === categoria)
+              ),
+              ...resultado.jogos,
+            ];
+          }
+          if (!estado.mataMata.some((m) => m.campeonatoId === campeonatoId))
+            return erro("Nenhuma chave pôde ser montada.");
+          estado.campeonatos[indice] = { ...campeonato, etapa: "final" };
+        } else if (campeonato.etapa === "final") {
+          estado.campeonatos[indice] = { ...campeonato, etapa: "encerrado" };
+        }
+        break;
+      }
 
       if (campeonato.etapa === "participantes") {
         for (const categoria of categorias) {
@@ -786,14 +1104,24 @@ export async function POST(request: Request) {
       const indice = estado.campeonatos.findIndex((c) => c.id === campeonatoId);
       if (indice < 0) return erro("Campeonato não encontrado.", 404);
       const campeonato = estado.campeonatos[indice];
-      const posicao = ORDEM_ETAPAS.indexOf(campeonato.etapa);
+      const duplasFechadas = ehDuplasFechadas(campeonato);
+      const ordem = ordemEtapas(duplasFechadas ? "duplas_fechadas" : "sorteio");
+      const posicao = ordem.indexOf(campeonato.etapa);
       if (posicao <= 0) return erro("O campeonato já está na primeira etapa.");
 
-      const anterior = ORDEM_ETAPAS[posicao - 1];
-      // volta preservando o que a etapa anterior produz
-      if (anterior === "participantes") limparDaEtapa(estado, campeonatoId, "grupos");
-      if (anterior === "classificacao") limparDaEtapa(estado, campeonatoId, "duplas");
-      if (anterior === "duplas") limparDaEtapa(estado, campeonatoId, "final");
+      const anterior = ordem[posicao - 1];
+      // volta preservando o que a etapa anterior produz; nas duplas fechadas as
+      // duplas são a inscrição e nunca são apagadas por aqui
+      if (anterior === "participantes")
+        limparDaEtapa(estado, campeonatoId, "grupos", duplasFechadas);
+      else if (anterior === "classificacao")
+        limparDaEtapa(
+          estado,
+          campeonatoId,
+          duplasFechadas ? "final" : "duplas",
+          duplasFechadas
+        );
+      else if (anterior === "duplas") limparDaEtapa(estado, campeonatoId, "final");
       estado.campeonatos[indice] = { ...campeonato, etapa: anterior };
       avisos.push(`Campeonato voltou para a etapa "${anterior}".`);
       break;

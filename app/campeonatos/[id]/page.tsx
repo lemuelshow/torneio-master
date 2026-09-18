@@ -4,12 +4,12 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useState } from "react";
 import {
-  ArrowLeft, ArrowRight, CalendarDays, ChevronLeft, Flag, MapPin, Pencil, Save,
-  Wallet,
+  ArrowLeft, ArrowRight, CalendarDays, ChevronLeft, Flag, Layers, MapPin, Pencil,
+  Save, Wallet,
 } from "lucide-react";
 import { useDados, dataBr } from "@/lib/cliente";
-import { indiceEtapa, podeAvancar } from "@/lib/regras";
-import { ETAPAS, type Etapa } from "@/lib/tipos";
+import { formatoDo, indiceEtapa, podeAvancar } from "@/lib/regras";
+import { etapasDoFormato, type Etapa, type Formato } from "@/lib/tipos";
 import { Escudo, FaixaBandeira } from "@/components/Marca";
 import { Alerta, Botao, Campo, Card, Entrada, Selo, Titulo, Vazio } from "@/components/ui";
 import { EtapaParticipantes } from "@/components/etapas/Participantes";
@@ -17,17 +17,27 @@ import { EtapaGrupos } from "@/components/etapas/Grupos";
 import { EtapaClassificacao } from "@/components/etapas/Classificacao";
 import { EtapaDuplas } from "@/components/etapas/Duplas";
 import { EtapaFinal } from "@/components/etapas/Final";
+import { EtapaInscricaoDuplas } from "@/components/etapas/InscricaoDuplas";
+import { EtapaGruposDuplas } from "@/components/etapas/GruposDuplas";
 
-const ACAO: Record<Etapa, string> = {
-  participantes: "Próxima etapa · sortear a fase de grupos",
-  grupos: "Processar e gerar Classificação",
-  classificacao: "Ir para a segunda etapa (sorteio de duplas)",
-  duplas: "Gerar a chave final",
-  final: "Encerrar torneio",
-  encerrado: "Torneio encerrado",
+const ACAO: Record<Formato, Record<Etapa, string>> = {
+  sorteio: {
+    participantes: "Próxima etapa · sortear a fase de grupos",
+    grupos: "Processar e gerar Classificação",
+    classificacao: "Ir para a segunda etapa (sorteio de duplas)",
+    duplas: "Gerar a chave final",
+    final: "Encerrar torneio",
+    encerrado: "Torneio encerrado",
+  },
+  duplas_fechadas: {
+    participantes: "Próxima etapa · sortear os grupos de duplas",
+    grupos: "Processar e gerar Classificação",
+    classificacao: "Gerar a chave final (cruzamento)",
+    duplas: "Gerar a chave final",
+    final: "Encerrar torneio",
+    encerrado: "Torneio encerrado",
+  },
 };
-
-const PASSOS = ETAPAS.filter((e) => e.chave !== "encerrado");
 
 export default function PaginaCampeonato() {
   const parametros = useParams<{ id: string }>();
@@ -71,8 +81,14 @@ export default function PaginaCampeonato() {
       />
     );
 
+  const formato = formatoDo(campeonato);
+  const duplasFechadas = formato === "duplas_fechadas";
+  const etapas = etapasDoFormato(formato);
+  const passos = etapas.filter((e) => e.chave !== "encerrado");
+  const acoes = ACAO[formato];
+
   const encerrado = campeonato.etapa === "encerrado";
-  const posicaoAtual = indiceEtapa(campeonato.etapa);
+  const posicaoAtual = indiceEtapa(campeonato.etapa, formato);
   const permitido = podeAvancar(estado, campeonato);
   const escolhida = visao.escolhida;
 
@@ -116,7 +132,11 @@ export default function PaginaCampeonato() {
               )}
               <span className="inline-flex items-center gap-1">
                 <Flag className="size-3.5 text-ouro-500" />
-                {ETAPAS.find((e) => e.chave === campeonato.etapa)?.titulo}
+                {etapas.find((e) => e.chave === campeonato.etapa)?.titulo}
+              </span>
+              <span className="inline-flex items-center gap-1">
+                <Layers className="size-3.5 text-ouro-500" />
+                {duplasFechadas ? "Duplas fechadas" : "Sorteio"}
               </span>
             </p>
           </div>
@@ -187,7 +207,7 @@ export default function PaginaCampeonato() {
       {/* ----------------------------------------------------------- passos */}
       <nav className="scroll-x overflow-x-auto">
         <ol className="flex min-w-max items-stretch gap-2">
-          {PASSOS.map((passo, i) => {
+          {passos.map((passo, i) => {
             const alcancado = i <= posicaoAtual;
             const ativo = passo.chave === escolhida;
             const concluido = i < posicaoAtual;
@@ -243,14 +263,20 @@ export default function PaginaCampeonato() {
 
       {/* ---------------------------------------------------------- painel */}
       <div>
-        {escolhida === "participantes" && (
-          <EtapaParticipantes campeonato={campeonato} bloqueado={encerrado} />
-        )}
-        {escolhida === "grupos" && (
-          <EtapaGrupos campeonato={campeonato} bloqueado={encerrado} />
-        )}
+        {escolhida === "participantes" &&
+          (duplasFechadas ? (
+            <EtapaInscricaoDuplas campeonato={campeonato} bloqueado={encerrado} />
+          ) : (
+            <EtapaParticipantes campeonato={campeonato} bloqueado={encerrado} />
+          ))}
+        {escolhida === "grupos" &&
+          (duplasFechadas ? (
+            <EtapaGruposDuplas campeonato={campeonato} bloqueado={encerrado} />
+          ) : (
+            <EtapaGrupos campeonato={campeonato} bloqueado={encerrado} />
+          ))}
         {escolhida === "classificacao" && <EtapaClassificacao campeonato={campeonato} />}
-        {escolhida === "duplas" && (
+        {escolhida === "duplas" && !duplasFechadas && (
           <EtapaDuplas campeonato={campeonato} bloqueado={encerrado} />
         )}
         {escolhida === "final" && (
@@ -266,9 +292,11 @@ export default function PaginaCampeonato() {
               Etapa atual
             </p>
             <p className="flex items-center gap-2 text-[14px] font-bold text-marinho-800">
-              {ETAPAS.find((e) => e.chave === campeonato.etapa)?.titulo}
+              {etapas.find((e) => e.chave === campeonato.etapa)?.titulo}
               {escolhida !== campeonato.etapa && (
-                <Selo tom="neutro">visualizando “{ETAPAS.find((e) => e.chave === escolhida)?.titulo}”</Selo>
+                <Selo tom="neutro">
+                  visualizando “{etapas.find((e) => e.chave === escolhida)?.titulo}”
+                </Selo>
               )}
             </p>
             {!permitido.ok && !encerrado && (
@@ -289,7 +317,7 @@ export default function PaginaCampeonato() {
               onClick={avancar}
               disabled={salvando || encerrado || !permitido.ok}
             >
-              {ACAO[campeonato.etapa]}
+              {acoes[campeonato.etapa]}
               <ArrowRight className="size-4" />
             </Botao>
           </div>

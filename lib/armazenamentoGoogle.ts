@@ -1,8 +1,12 @@
-import { ABAS, configPadrao, dataIso, num, paraLado, sim, type Coluna } from "./excel";
+import {
+  ABAS, configPadrao, dataIso, num, paraCorte, paraFormato, paraLado,
+  paraOrigemDupla, sim, type Coluna,
+} from "./excel";
 import { ORDEM_ETAPAS, classificar, participantesDo } from "./regras";
 import {
   criarAbas, escreverVariasAbas, lerVariasAbas, limparVariasAbas, listarAbasExistentes,
 } from "./googleSheets";
+import { normalizarNome } from "./texto";
 import type {
   Atleta, Campeonato, Config, Dupla, Estado, Etapa, FaixaCategoria,
   IntegranteGrupo, Jogo, JogoMataMata, Participante, Sexo,
@@ -144,7 +148,12 @@ export async function gravarEstadoGoogle(estado: Estado): Promise<void> {
           x.grupo - y.grupo ||
           x.vaga - y.vaga
       )
-      .map((g) => ({ ...g, campeonato: camp(g.campeonatoId), nome: nome(g.atletaId) }))
+      .map((g) => ({
+        ...g,
+        campeonato: camp(g.campeonatoId),
+        nome: nome(g.atletaId),
+        dupla: nomeDupla(g.duplaId),
+      }))
   );
 
   const matrizJogos = matrizDaAba(
@@ -309,8 +318,9 @@ export async function lerEstadoGoogle(): Promise<Estado> {
   const atletas = registrosDaMatriz(porChave.atletas, ABAS.atletas).map(
     (a): Atleta => ({
       id: a.id,
-      nome: a.nome,
-      apelido: a.apelido,
+      // nome digitado direto na planilha também sobe em MAIÚSCULO
+      nome: normalizarNome(a.nome),
+      apelido: normalizarNome(a.apelido),
       cidade: a.cidade,
       nascimento: dataIso(a.nascimento),
       sexo: (a.sexo.toUpperCase() === "F" ? "F" : "M") as Sexo,
@@ -331,6 +341,9 @@ export async function lerEstadoGoogle(): Promise<Estado> {
       etapa: (ORDEM_ETAPAS as readonly string[]).includes(x.etapa) ? (x.etapa as Etapa) : "participantes",
       valorInscricao: num(x.valorInscricao) || config.valorInscricao,
       atletasPorGrupo: num(x.atletasPorGrupo) || config.atletasPorGrupo,
+      duplasPorGrupo: num(x.duplasPorGrupo) || 3,
+      formato: paraFormato(x.formato),
+      corteDeClassificacao: paraCorte(x.corteDeClassificacao),
       criadoEm: dataIso(x.criadoEm),
       observacoes: x.observacoes,
     })
@@ -355,6 +368,7 @@ export async function lerEstadoGoogle(): Promise<Estado> {
       grupo: num(g.grupo),
       vaga: num(g.vaga),
       atletaId: g.atletaId,
+      duplaId: g.duplaId || null,
       ladoNoGrupo: paraLado(g.ladoNoGrupo),
       posicaoManual: g.posicaoManual ? num(g.posicaoManual) || null : null,
     })
@@ -385,6 +399,8 @@ export async function lerEstadoGoogle(): Promise<Estado> {
       numero: num(d.numero),
       atletaD: d.atletaD,
       atletaE: d.atletaE,
+      origem: paraOrigemDupla(d.origem),
+      cabecaDeChave: sim(d.cabecaDeChave),
     })
   );
 

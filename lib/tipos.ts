@@ -2,7 +2,24 @@ export type Lado = "D" | "E" | "Ambos";
 export type Sexo = "M" | "F";
 export type Divisao = "Ouro" | "Prata";
 
-/** Etapas do fluxo de um campeonato, na ordem. */
+/**
+ * Formato do torneio. "sorteio" é o do 1º dia: inscrição individual, grupos
+ * sorteados com parceiro em rodízio e 2º sorteio de duplas. "duplas_fechadas"
+ * é o do 2º dia: a dupla se inscreve junta e continua a mesma até a final.
+ * Campeonato sem formato gravado conta como "sorteio".
+ */
+export type Formato = "sorteio" | "duplas_fechadas";
+
+/** De onde veio a dupla: do 2º sorteio ou da inscrição feita pelo operador. */
+export type OrigemDupla = "sorteio" | "inscricao";
+
+/** Quantos de cada grupo passam para a chave, no formato de duplas fechadas. */
+export type CorteDeClassificacao = "1" | "2" | "2+3";
+
+/**
+ * Etapas do fluxo de um campeonato, na ordem. O formato de duplas fechadas usa
+ * as mesmas chaves, só que pula "duplas" — nele a dupla já nasce inscrita.
+ */
 export type Etapa =
   | "participantes"
   | "grupos"
@@ -11,7 +28,13 @@ export type Etapa =
   | "final"
   | "encerrado";
 
-export const ETAPAS: { chave: Etapa; titulo: string; descricao: string }[] = [
+export interface PassoDaEtapa {
+  chave: Etapa;
+  titulo: string;
+  descricao: string;
+}
+
+export const ETAPAS: PassoDaEtapa[] = [
   {
     chave: "participantes",
     titulo: "Participantes",
@@ -44,6 +67,38 @@ export const ETAPAS: { chave: Etapa; titulo: string; descricao: string }[] = [
   },
 ];
 
+/** Mesmo fluxo, sem o 2º sorteio: a dupla entra fechada e continua a mesma. */
+export const ETAPAS_DUPLAS_FECHADAS: PassoDaEtapa[] = [
+  {
+    chave: "participantes",
+    titulo: "Inscrição das duplas",
+    descricao: "Monte as duplas e controle as inscrições.",
+  },
+  {
+    chave: "grupos",
+    titulo: "Fase de grupos",
+    descricao: "Grupos sorteados de duplas, todos contra todos.",
+  },
+  {
+    chave: "classificacao",
+    titulo: "Classificação e súmulas",
+    descricao: "Ordenação das duplas por grupo, com súmulas em PDF.",
+  },
+  {
+    chave: "final",
+    titulo: "Chave final",
+    descricao: "Cruzamento olímpico até a decisão.",
+  },
+  {
+    chave: "encerrado",
+    titulo: "Encerrado",
+    descricao: "Campeonato concluído.",
+  },
+];
+
+export const etapasDoFormato = (formato: Formato): PassoDaEtapa[] =>
+  formato === "duplas_fechadas" ? ETAPAS_DUPLAS_FECHADAS : ETAPAS;
+
 /** Base global de atletas — reaproveitada entre campeonatos. */
 export interface Atleta {
   id: string;
@@ -65,7 +120,13 @@ export interface Campeonato {
   data: string; // yyyy-mm-dd — base do cálculo de idade
   local: string;
   valorInscricao: number;
+  /** Tamanho do grupo no formato sorteio. */
   atletasPorGrupo: number;
+  /** Tamanho do grupo no formato de duplas fechadas. */
+  duplasPorGrupo: number;
+  formato: Formato;
+  /** Quantos de cada grupo vão para a chave (só no formato de duplas fechadas). */
+  corteDeClassificacao: CorteDeClassificacao;
   etapa: Etapa;
   criadoEm: string;
   observacoes: string;
@@ -88,12 +149,19 @@ export interface Participante {
   dataP4: string;
 }
 
+/**
+ * Uma vaga dentro de um grupo. No formato sorteio a vaga é de um atleta
+ * (`atletaId`); no de duplas fechadas é de uma dupla inteira (`duplaId`, com
+ * `atletaId` vazio). Use `chaveDoIntegrante` para ler a identidade da vaga sem
+ * se importar com o formato.
+ */
 export interface IntegranteGrupo {
   campeonatoId: string;
   categoria: string;
   grupo: number;
   vaga: number;
   atletaId: string;
+  duplaId: string | null;
   ladoNoGrupo: Lado;
   /** Posição fixada à mão na classificação do grupo; null = ordem automática. */
   posicaoManual: number | null;
@@ -111,6 +179,13 @@ export interface Jogo {
   pontosB: number | null;
 }
 
+/**
+ * Dupla fixa. No formato sorteio ela nasce do 2º sorteio (origem "sorteio") e
+ * `divisao` separa Ouro e Prata; no de duplas fechadas ela nasce da inscrição
+ * (origem "inscricao") e a divisão fica sempre em "Ouro", que é a chave única
+ * da categoria — o campo continua aí para o dia em que o cliente pedir Ouro e
+ * Prata também nesse formato.
+ */
 export interface Dupla {
   id: string;
   campeonatoId: string;
@@ -119,6 +194,8 @@ export interface Dupla {
   numero: number;
   atletaD: string;
   atletaE: string;
+  origem: OrigemDupla;
+  cabecaDeChave: boolean;
 }
 
 export interface JogoMataMata {
@@ -181,7 +258,10 @@ export interface LinhaClassificacao {
   categoria: string;
   grupo: number;
   posicao: number;
+  /** Preenchido no formato sorteio; vazio quando a linha é de uma dupla. */
   atletaId: string;
+  /** Preenchido no formato de duplas fechadas. */
+  duplaId: string | null;
   nome: string;
   vitorias: number;
   pontosPro: number;

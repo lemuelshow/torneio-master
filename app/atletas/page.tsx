@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { Pencil, Plus, Search, Trash2, X } from "lucide-react";
 import { ROTULO_LADO, dataBr, useDados } from "@/lib/cliente";
+import { maiusculo } from "@/lib/texto";
 import type { Atleta, Lado, Sexo } from "@/lib/tipos";
 import {
   Alerta, Botao, Cabecalho, Campo, Card, Entrada, Paginacao, Selecao, Selo, Tabela, Titulo,
@@ -124,15 +125,17 @@ export default function AtletasPage() {
           <Campo rotulo="Nome" className="lg:col-span-2">
             <Entrada
               value={form.nome}
-              onChange={(e) => set("nome", e.target.value)}
+              onChange={(e) => set("nome", maiusculo(e.target.value))}
               placeholder="Nome completo"
+              className="uppercase"
             />
           </Campo>
           <Campo rotulo="Apelido">
             <Entrada
               value={form.apelido}
-              onChange={(e) => set("apelido", e.target.value)}
+              onChange={(e) => set("apelido", maiusculo(e.target.value))}
               placeholder="Como é conhecido"
+              className="uppercase"
             />
           </Campo>
           <Campo rotulo="Cidade">

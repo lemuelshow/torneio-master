@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { Search, Trash2, UserPlus, Users, Wallet } from "lucide-react";
 import { ROTULO_LADO, useDados } from "@/lib/cliente";
 import { idadeNaData } from "@/lib/regras";
+import { maiusculo } from "@/lib/texto";
 import type { Campeonato } from "@/lib/tipos";
 import {
   Abas, Alerta, Botao, Campo, Card, Entrada, Paginacao, Selecao, Selo, Tabela, Titulo,
@@ -144,15 +145,19 @@ export function EtapaParticipantes({
                 <Campo rotulo="Nome" className="lg:col-span-2">
                   <Entrada
                     value={novo.nome}
-                    onChange={(e) => setNovo({ ...novo, nome: e.target.value })}
+                    onChange={(e) => setNovo({ ...novo, nome: maiusculo(e.target.value) })}
                     placeholder="Nome completo"
+                    className="uppercase"
                   />
                 </Campo>
                 <Campo rotulo="Apelido">
                   <Entrada
                     value={novo.apelido}
-                    onChange={(e) => setNovo({ ...novo, apelido: e.target.value })}
+                    onChange={(e) =>
+                      setNovo({ ...novo, apelido: maiusculo(e.target.value) })
+                    }
                     placeholder="Como é conhecido"
+                    className="uppercase"
                   />
                 </Campo>
                 <Campo rotulo="Cidade">

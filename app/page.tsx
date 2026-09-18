@@ -6,7 +6,8 @@ import {
   ArrowRight, CalendarDays, MapPin, Plus, Trash2, Trophy, Users, X,
 } from "lucide-react";
 import { useDados, dataBr, dinheiro } from "@/lib/cliente";
-import { ETAPAS, type Etapa } from "@/lib/tipos";
+import { etapasDoFormato, type Etapa, type Formato } from "@/lib/tipos";
+import { formatoDo } from "@/lib/regras";
 import { Escudo, FaixaBandeira } from "@/components/Marca";
 import {
   Alerta, Botao, Campo, Card, Entrada, Paginacao, Selo, Titulo, usePaginacao, Vazio,
@@ -21,8 +22,23 @@ const TOM_ETAPA: Record<Etapa, "neutro" | "info" | "ouro" | "ok"> = {
   encerrado: "ok",
 };
 
-const rotuloEtapa = (etapa: Etapa) =>
-  ETAPAS.find((e) => e.chave === etapa)?.titulo ?? etapa;
+const rotuloEtapa = (etapa: Etapa, formato: Formato) =>
+  etapasDoFormato(formato).find((e) => e.chave === etapa)?.titulo ?? etapa;
+
+const FORMATOS: { valor: Formato; titulo: string; descricao: string }[] = [
+  {
+    valor: "sorteio",
+    titulo: "Sorteio",
+    descricao:
+      "Inscrição individual. Nos grupos o atleta troca de parceiro a cada rodada e, depois da classificação, um 2º sorteio forma as duplas do Ouro e da Prata.",
+  },
+  {
+    valor: "duplas_fechadas",
+    titulo: "Duplas fechadas",
+    descricao:
+      "A dupla se inscreve junta e continua a mesma até a final. Os grupos são de duplas, todos contra todos, e a chave sai por cruzamento olímpico.",
+  },
+];
 
 export default function Campeonatos() {
   const { estado, executar, salvando, participantesDe } = useDados();
@@ -34,7 +50,10 @@ export default function Campeonatos() {
     local: "",
     valorInscricao: estado.config.valorInscricao,
     atletasPorGrupo: estado.config.atletasPorGrupo,
+    duplasPorGrupo: 3,
+    formato: "sorteio" as Formato,
   });
+  const duplasFechadas = form.formato === "duplas_fechadas";
 
   const lista = useMemo(
     () =>
@@ -64,6 +83,8 @@ export default function Campeonatos() {
         local: "",
         valorInscricao: estado.config.valorInscricao,
         atletasPorGrupo: estado.config.atletasPorGrupo,
+        duplasPorGrupo: 3,
+        formato: "sorteio",
       });
     }
   };
@@ -99,6 +120,40 @@ export default function Campeonatos() {
           <Titulo dica="A data da competição é a base do cálculo de idade dos atletas.">
             Novo torneio
           </Titulo>
+          <fieldset className="mb-4">
+            <legend className="mb-2 text-[12px] font-bold uppercase tracking-wide text-marinho-600">
+              Formato
+            </legend>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {FORMATOS.map((f) => (
+                <label
+                  key={f.valor}
+                  className={`cursor-pointer rounded-xl border p-3 transition-colors ${
+                    form.formato === f.valor
+                      ? "border-marinho-600 bg-marinho-50"
+                      : "border-line bg-surface hover:border-marinho-300"
+                  }`}
+                >
+                  <span className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="formato"
+                      className="size-4 accent-[var(--color-marinho-600)]"
+                      checked={form.formato === f.valor}
+                      onChange={() => setForm({ ...form, formato: f.valor })}
+                    />
+                    <span className="text-[13px] font-bold text-marinho-800">
+                      {f.titulo}
+                    </span>
+                  </span>
+                  <span className="mt-1 block text-[12px] leading-snug text-ink-2">
+                    {f.descricao}
+                  </span>
+                </label>
+              ))}
+            </div>
+          </fieldset>
+
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <Campo rotulo="Nome" className="lg:col-span-2">
               <Entrada
@@ -132,17 +187,34 @@ export default function Campeonatos() {
                 }
               />
             </Campo>
-            <Campo rotulo="Atletas por grupo">
-              <Entrada
-                type="number"
-                min={2}
-                max={8}
-                value={form.atletasPorGrupo}
-                onChange={(e) =>
-                  setForm({ ...form, atletasPorGrupo: Number(e.target.value) })
-                }
-              />
-            </Campo>
+            {duplasFechadas ? (
+              <Campo
+                rotulo="Duplas por grupo"
+                dica="Grupo nunca fica com menos de 3: o resto engorda os últimos"
+              >
+                <Entrada
+                  type="number"
+                  min={3}
+                  max={8}
+                  value={form.duplasPorGrupo}
+                  onChange={(e) =>
+                    setForm({ ...form, duplasPorGrupo: Number(e.target.value) })
+                  }
+                />
+              </Campo>
+            ) : (
+              <Campo rotulo="Atletas por grupo">
+                <Entrada
+                  type="number"
+                  min={2}
+                  max={8}
+                  value={form.atletasPorGrupo}
+                  onChange={(e) =>
+                    setForm({ ...form, atletasPorGrupo: Number(e.target.value) })
+                  }
+                />
+              </Campo>
+            )}
           </div>
           <div className="mt-4">
             <Botao onClick={criar} disabled={salvando}>
@@ -167,7 +239,9 @@ export default function Campeonatos() {
       ) : (
         <div className="grid gap-3 lg:grid-cols-2">
           {paginacao.itensDaPagina.map((c) => {
-            const passo = ETAPAS.findIndex((e) => e.chave === c.etapa);
+            const formato = formatoDo(c);
+            const etapas = etapasDoFormato(formato);
+            const passo = etapas.findIndex((e) => e.chave === c.etapa);
             return (
               <Card key={c.id} padding={false} className="overflow-hidden">
                 <Link href={`/campeonatos/${c.id}`} className="block p-4 hover:bg-marinho-50/40">
@@ -193,12 +267,17 @@ export default function Campeonatos() {
                         </span>
                       </p>
                     </div>
-                    <Selo tom={TOM_ETAPA[c.etapa]}>{rotuloEtapa(c.etapa)}</Selo>
+                    <div className="flex shrink-0 flex-col items-end gap-1">
+                      <Selo tom={TOM_ETAPA[c.etapa]}>{rotuloEtapa(c.etapa, formato)}</Selo>
+                      <Selo tom={formato === "duplas_fechadas" ? "info" : "neutro"}>
+                        {formato === "duplas_fechadas" ? "Duplas fechadas" : "Sorteio"}
+                      </Selo>
+                    </div>
                   </div>
 
                   {/* trilha das etapas */}
                   <div className="mt-3 flex items-center gap-1">
-                    {ETAPAS.slice(0, 5).map((e, i) => (
+                    {etapas.slice(0, etapas.length - 1).map((e, i) => (
                       <span
                         key={e.chave}
                         title={e.titulo}

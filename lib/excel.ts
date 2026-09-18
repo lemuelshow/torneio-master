@@ -1,9 +1,11 @@
 import path from "node:path";
 import fs from "node:fs/promises";
 import ExcelJS from "exceljs";
+import { normalizarNome } from "./texto";
 import type {
-  Atleta, Campeonato, Config, Dupla, Estado, Etapa, FaixaCategoria,
-  IntegranteGrupo, Jogo, JogoMataMata, Lado, Participante, Sexo,
+  Atleta, Campeonato, Config, CorteDeClassificacao, Dupla, Estado, Etapa,
+  FaixaCategoria, Formato, IntegranteGrupo, Jogo, JogoMataMata, Lado,
+  OrigemDupla, Participante, Sexo,
 } from "./tipos";
 import { ORDEM_ETAPAS, classificar, participantesDo } from "./regras";
 
@@ -44,6 +46,11 @@ export const ABAS = {
     c("participantes", "Participantes", 15, "numero"),
     c("criadoEm", "Criado em", 16, "data", DATA),
     c("observacoes", "Observações", 40),
+    // colunas novas entram sempre no fim: a leitura do arquivo local é por
+    // posição, e planilha antiga simplesmente não tem estas células
+    c("formato", "Formato", 18),
+    c("duplasPorGrupo", "Duplas por grupo", 18, "numero"),
+    c("corteDeClassificacao", "Classificados por grupo", 22),
   ],
   atletas: [
     c("id", "ID", 16),
@@ -89,6 +96,8 @@ export const ABAS = {
     c("nome", "Atleta", 30),
     c("ladoNoGrupo", "Lado no grupo", 15),
     c("posicaoManual", "Posição manual", 16, "numero"),
+    c("duplaId", "ID da dupla", 28),
+    c("dupla", "Dupla", 34),
   ],
   jogos: [
     c("id", "ID", 26),
@@ -118,6 +127,7 @@ export const ABAS = {
     c("divisao", "Divisão", 12),
     c("campeonatoId", "ID do campeonato", 18),
     c("atletaId", "ID do atleta", 16),
+    c("duplaId", "ID da dupla", 28),
   ],
   duplas: [
     c("id", "ID", 28),
@@ -130,6 +140,8 @@ export const ABAS = {
     c("nomeE", "Atleta lado E", 28),
     c("atletaD", "ID lado D", 16),
     c("atletaE", "ID lado E", 16),
+    c("origem", "Origem", 14),
+    c("cabecaDeChave", "Cabeça de chave", 16, "sim/nao"),
   ],
   mataMata: [
     c("id", "ID", 30),
@@ -260,6 +272,19 @@ export const paraLado = (v: string): Lado =>
 const paraEtapa = (v: string): Etapa =>
   (ORDEM_ETAPAS as string[]).includes(v) ? (v as Etapa) : "participantes";
 
+/* Migração das colunas novas: campeonato ou dupla gravados antes do formato de
+ * duplas fechadas vêm com a célula vazia, e o vazio tem que cair no que já
+ * existia — sorteio. */
+
+export const paraFormato = (v: string): Formato =>
+  v.trim().toLowerCase() === "duplas_fechadas" ? "duplas_fechadas" : "sorteio";
+
+export const paraCorte = (v: string): CorteDeClassificacao =>
+  v.trim() === "1" ? "1" : v.trim() === "2+3" ? "2+3" : "2";
+
+export const paraOrigemDupla = (v: string): OrigemDupla =>
+  v.trim().toLowerCase() === "inscricao" ? "inscricao" : "sorteio";
+
 /** Lê o estado direto da planilha. Cria o arquivo se ainda não existir. */
 export async function lerEstado(): Promise<Estado> {
   try {
@@ -304,8 +329,9 @@ export async function lerEstado(): Promise<Estado> {
   const atletas = lerAba(wb.getWorksheet("Atletas"), ABAS.atletas).map(
     (a): Atleta => ({
       id: a.id,
-      nome: a.nome,
-      apelido: a.apelido,
+      // nome digitado direto na planilha também sobe em MAIÚSCULO
+      nome: normalizarNome(a.nome),
+      apelido: normalizarNome(a.apelido),
       cidade: a.cidade,
       nascimento: a.nascimento,
       sexo: (a.sexo.toUpperCase() === "F" ? "F" : "M") as Sexo,
@@ -326,6 +352,9 @@ export async function lerEstado(): Promise<Estado> {
       etapa: paraEtapa(x.etapa),
       valorInscricao: num(x.valorInscricao) || config.valorInscricao,
       atletasPorGrupo: num(x.atletasPorGrupo) || config.atletasPorGrupo,
+      duplasPorGrupo: num(x.duplasPorGrupo) || 3,
+      formato: paraFormato(x.formato),
+      corteDeClassificacao: paraCorte(x.corteDeClassificacao),
       criadoEm: x.criadoEm,
       observacoes: x.observacoes,
     })
@@ -355,6 +384,7 @@ export async function lerEstado(): Promise<Estado> {
       grupo: num(g.grupo),
       vaga: num(g.vaga),
       atletaId: g.atletaId,
+      duplaId: g.duplaId || null,
       ladoNoGrupo: paraLado(g.ladoNoGrupo),
       posicaoManual: g.posicaoManual ? num(g.posicaoManual) || null : null,
     })
@@ -385,6 +415,8 @@ export async function lerEstado(): Promise<Estado> {
       numero: num(d.numero),
       atletaD: d.atletaD,
       atletaE: d.atletaE,
+      origem: paraOrigemDupla(d.origem),
+      cabecaDeChave: sim(d.cabecaDeChave),
     })
   );
 
@@ -639,7 +671,12 @@ export async function montarWorkbook(estado: Estado): Promise<ExcelJS.Workbook> 
           x.grupo - y.grupo ||
           x.vaga - y.vaga
       )
-      .map((g) => ({ ...g, campeonato: camp(g.campeonatoId), nome: nome(g.atletaId) }))
+      .map((g) => ({
+        ...g,
+        campeonato: camp(g.campeonatoId),
+        nome: nome(g.atletaId),
+        dupla: nomeDupla(g.duplaId),
+      }))
   );
 
   montarAba(
